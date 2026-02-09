@@ -21,3 +21,23 @@ body {
   background-color: rgba(148, 163, 184, 0.6);
   border-radius: 9999px;
 }
+
+/* Hide native datepicker icons and normalize appearance across browsers */
+input[type="date"] {
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+  appearance: none;
+  padding-right: 2.5rem; /* room for custom icon */
+}
+
+/* WebKit calendar picker indicator (Chrome, Edge, Safari) */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  display: none;
+  -webkit-appearance: none;
+}
+
+/* Firefox clear/inner controls */
+input[type="date"]::-moz-clear {
+  display: none;
+}
+

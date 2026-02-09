@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { HomeIcon, CalendarIcon, UsersIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
+import { CalendarIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
 import Navbar from '../Components/Navbar';
+import AddHRModal from '../Components/AddHRModal';
+import BookSlot from './BookSlot';
 
 // Header Component
 function Header() {
@@ -46,7 +48,7 @@ function SlotCard({ title, time }) {
 }
 
 // Calendar Grid Component
-function CalendarGrid() {
+function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) {
   const timeSlots = [
     '11:00 AM',
     '12:00 PM',
@@ -114,17 +116,23 @@ function CalendarGrid() {
             </h2>
 
             {/* Right - Action Buttons */}
-            <div className="flex flex-wrap gap-2 sm:gap-3 w-full">
+              <div className="flex flex-wrap gap-2 sm:gap-3 w-full">
               <button className="bg-blue-500 hover:bg-blue-600 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1 flex-shrink-0">
                 <CloudArrowDownIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">Download</span>
                 <span className="sm:hidden">Personal Detail Form</span>
               </button>
-              <button className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap flex-shrink-0">
+              <button
+                onClick={onOpenAddHR}
+                className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap flex-shrink-0"
+              >
                 <span className="hidden sm:inline">+ Add New HR</span>
                 <span className="sm:hidden">+ HR</span>
               </button>
-              <button className="bg-green-500 hover:bg-green-600 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap flex-shrink-0">
+              <button
+                onClick={onOpenBookSlot}
+                className="bg-green-500 hover:bg-green-600 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap flex-shrink-0"
+              >
                 <span className="hidden sm:inline">+ Book New Slot</span>
                 <span className="sm:hidden">+ Slot</span>
               </button>
@@ -163,10 +171,16 @@ function CalendarGrid() {
                 <CloudArrowDownIcon className="w-4 h-4" />
                 Download Personal Detail Form
               </button>
-              <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap">
+              <button
+                onClick={onOpenAddHR}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap"
+              >
                 + Add New HR
               </button>
-              <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap">
+              <button
+                onClick={onOpenBookSlot}
+                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap"
+              >
                 + Book New Slot
               </button>
             </div>
@@ -230,18 +244,32 @@ function CalendarGrid() {
           </tbody>
         </table>
       </div>
+      <AddHRModal isOpen={showAddHR} onClose={onCloseAddHR} />
     </div>
   );
 }
 
 // Main Dashboard Component
 export default function CandidateDashboard() {
+  const [showAddHR, setShowAddHR] = useState(false);
+  const [showBookSlot, setShowBookSlot] = useState(false);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <Navbar />
+      <Navbar onOpenAddHR={() => setShowAddHR(true)} />
       <main className="p-2 sm:p-4 md:p-8">
-        <CalendarGrid />
+        {showBookSlot ? (
+          // lazy load BookSlot component to keep file smaller
+          <BookSlot onClose={() => setShowBookSlot(false)} onOpenAddHR={() => setShowAddHR(true)} />
+        ) : (
+          <CalendarGrid
+            showAddHR={showAddHR}
+            onOpenAddHR={() => setShowAddHR(true)}
+            onCloseAddHR={() => setShowAddHR(false)}
+            onOpenBookSlot={() => setShowBookSlot(true)}
+          />
+        )}
       </main>
     </div>
   );

@@ -3,7 +3,7 @@ import { HomeIcon, CalendarIcon, UsersIcon, Bars3Icon, XMarkIcon } from '@heroic
 
 
 // Navigation Bar Component
-export default function Navbar() {
+export default function Navbar({ onOpenAddHR }) {
   const [active, setActive] = useState('home');
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -21,17 +21,24 @@ export default function Navbar() {
   return (
     <>
       {/* Desktop Navigation */}
-      <div className="hidden md:flex bg-white border-b border-gray-200 px-4 md:px-8 py-2 md:py-3 gap-2 md:gap-4">
+      <div className="hidden md:flex bg-white px-6 md:px-10 py-3 gap-3 items-center shadow-sm">
         {navItems.map((item) => {
           const Icon = item.icon;
           return (
             <button
               key={item.id}
-              onClick={() => setActive(item.id)}
-              className={`flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full transition-all ${
+              onClick={() => {
+                // eslint-disable-next-line no-console
+                console.log('Navbar: clicked', item.id);
+                setActive(item.id);
+                if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
+                  onOpenAddHR();
+                }
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
                 active === item.id
-                  ? 'bg-purple-100 text-purple-600'
-                  : 'text-gray-600 hover:text-gray-900'
+                  ? 'bg-purple-100 text-purple-600 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-800'
               }`}
             >
               <Icon className="w-5 h-5" />
@@ -65,7 +72,17 @@ export default function Navbar() {
               return (
                 <button
                   key={item.id}
-                  onClick={() => handleNavClick(item.id)}
+                  onClick={() => {
+                    // debug: log which mobile nav item was clicked
+                    // eslint-disable-next-line no-console
+                    console.log('Navbar (mobile): clicked', item.id);
+                    handleNavClick(item.id);
+                    if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
+                      // eslint-disable-next-line no-console
+                      console.log('Navbar (mobile): opening Add HR modal');
+                      onOpenAddHR();
+                    }
+                  }}
                   className={`flex items-center justify-center p-2.5 rounded-lg transition-all relative group ${
                     active === item.id
                       ? 'bg-purple-100 text-purple-600'
