@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export default function AddHRModal({ isOpen, onClose }) {
+export default function AddHRModal({ isOpen, onClose, onAdd }) {
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -19,15 +19,31 @@ export default function AddHRModal({ isOpen, onClose }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: wire to API
+    // Call parent handler if provided
+    if (onAdd) {
+      // create an id for the HR
+      const newHR = { id: Date.now(), ...form };
+      onAdd(newHR);
+    }
     // eslint-disable-next-line no-console
     console.log('Add HR', form);
+    // reset form (optional)
+    setForm({
+      name: '',
+      email: '',
+      technology: '',
+      mobile: '',
+      jobType: '',
+      company: '',
+    });
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-16">
-      <div className="fixed inset-0 bg-black/40" onClick={onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* backdrop */}
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      {/* modal */}
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 z-10">
         <button
           type="button"
@@ -39,7 +55,7 @@ export default function AddHRModal({ isOpen, onClose }) {
         </button>
 
         <div className="px-6 py-5 border-b">
-          <h3 className="text-xl font-semibold text-gray-800">Add HR</h3>
+          <h3 className="text-xl font-semibold text-gray-800">Add New HR</h3>
         </div>
 
         <form className="p-6" onSubmit={handleSubmit}>
