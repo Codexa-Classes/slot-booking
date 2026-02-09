@@ -104,7 +104,7 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
         <div className="md:hidden">
           <div className="flex flex-col items-start justify-between gap-3 mb-3">
             {/* Left - Today Info */}
-            <div className="flex items-center gap-2 text-xs sm:text-sm w-full">
+              <div className="flex items-center gap-2 text-xs sm:text-sm w-full">
               <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 flex-shrink-0" />
               <span className="text-gray-700 font-medium hidden sm:inline">Today: Thu, 5 Feb 2026</span>
               <span className="text-gray-700 font-medium sm:hidden">Thu, 5 Feb</span>
@@ -155,7 +155,7 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
         <div className="hidden md:block">
           <div className="flex items-center justify-between gap-6 mb-6">
             {/* Left - Today Info */}
-            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
               <CalendarIcon className="w-6 h-6 text-gray-600" />
               <span className="text-gray-700 font-medium">Today: Thu, 5 Feb 2026</span>
             </div>
@@ -263,14 +263,15 @@ export default function CandidateDashboard() {
           // lazy load BookSlot component to keep file smaller
           <BookSlot onClose={() => setShowBookSlot(false)} onOpenAddHR={() => setShowAddHR(true)} />
         ) : (
-          <CalendarGrid
-            showAddHR={showAddHR}
-            onOpenAddHR={() => setShowAddHR(true)}
-            onCloseAddHR={() => setShowAddHR(false)}
-            onOpenBookSlot={() => setShowBookSlot(true)}
-          />
+        <CalendarGrid
+          showAddHR={showAddHR}
+          onOpenAddHR={() => setShowAddHR(true)}
+          onCloseAddHR={() => setShowAddHR(false)}
+          onOpenBookSlot={() => setShowBookSlot(true)}
+        />
         )}
       </main>
+    
     </div>
   );
 }

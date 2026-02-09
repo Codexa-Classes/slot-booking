@@ -2,14 +2,14 @@ import React from 'react';
 import { FIXED_TODAY, formatHeaderToday } from '../calendar';
 import { Link } from "react-router-dom";
 
-function Header({ todaysSlotsCount }) {
+function Header({ todaysSlotsCount, fullWidth = false }) {
   const todayLabel = formatHeaderToday(FIXED_TODAY);
 
   return (
-    <header className="w-full border-b border-slate-200 bg-white">
-      <div className="mx-auto max-w-6xl px-2 sm:px-4 py-2 sm:py-4">
+    <header className="fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-200 bg-white">
+      <div className={fullWidth ? "w-full px-4 py-2 h-14 flex items-center" : "mx-auto max-w-6xl px-2 sm:px-4 py-2 sm:py-3 h-14 flex items-center"}>
         {/* Top row: logo + title + domain + login */}
-        <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6 flex-wrap md:flex-nowrap">
+        <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6 w-full">
           {/* Left: Logo + Title */}
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <div className="flex h-8 sm:h-10 w-8 sm:w-10 items-center justify-center rounded-full bg-indigo-600 text-xs sm:text-sm font-semibold text-white shadow-sm flex-shrink-0">

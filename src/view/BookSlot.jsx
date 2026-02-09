@@ -11,6 +11,7 @@ export default function BookSlot({ onClose, onOpenAddHR }) {
     hr: '',
   });
   const dateRef = useRef(null);
+  const [showMobileCalendar, setShowMobileCalendar] = useState(false);
   const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
@@ -85,19 +86,36 @@ export default function BookSlot({ onClose, onOpenAddHR }) {
               <div className="col-span-12 md:col-span-5 lg:col-span-5">
                 <label className="block text-xs font-medium text-gray-600">* Date</label>
                 <div className="mt-1 relative">
+                  {/* Desktop date input */}
                   <input
                     ref={dateRef}
                     type="date"
                     name="date"
                     value={form.date}
                     onChange={handleChange}
-                    className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9 placeholder-gray-400 pr-10 appearance-none"
+                    className="hidden sm:block w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9 placeholder-gray-400 pr-10 appearance-none"
                     style={{ WebkitAppearance: 'none', MozAppearance: 'textfield', appearance: 'none' }}
                   />
+
+                  {/* Mobile date display button (opens full-screen calendar) */}
+                  <button
+                    type="button"
+                    className="block sm:hidden w-full text-left border border-gray-200 rounded-md px-3 py-2 text-sm h-9 bg-white"
+                    onClick={() => setShowMobileCalendar(true)}
+                  >
+                    {form.date ? new Date(form.date).toLocaleDateString() : 'mm/dd/yyyy'}
+                  </button>
+
                   <button
                     type="button"
                     aria-label="Open date picker"
-                    onClick={() => dateRef.current && dateRef.current.focus()}
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && window.innerWidth < 768) {
+                        setShowMobileCalendar(true);
+                      } else {
+                        dateRef.current && dateRef.current.focus();
+                      }
+                    }}
                     className="absolute right-3 top-2.5 text-gray-400"
                   >
                     <CalendarIcon className="w-4 h-4" />
@@ -236,6 +254,40 @@ export default function BookSlot({ onClose, onOpenAddHR }) {
         </div>
       </div>
     </div>
+      {/* Mobile full-screen calendar modal */}
+      {showMobileCalendar && (
+        <div className="fixed inset-0 z-50 bg-white">
+          <div className="h-full flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-sm font-semibold">Select date</h3>
+              <button
+                onClick={() => setShowMobileCalendar(false)}
+                className="px-3 py-1 rounded bg-gray-100"
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex-1 p-6 flex items-center justify-center">
+              <input
+                type="date"
+                className="w-full max-w-md border border-gray-200 rounded-md p-3 text-lg"
+                value={form.date}
+                onChange={(e) => {
+                  handleChange(e);
+                }}
+              />
+            </div>
+            <div className="p-4 border-t">
+              <button
+                onClick={() => setShowMobileCalendar(false)}
+                className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-purple-600 text-white"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
