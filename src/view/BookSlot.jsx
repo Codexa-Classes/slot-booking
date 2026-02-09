@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { CalendarIcon } from '@heroicons/react/24/solid';
 
-export default function BookSlot({ onClose, onOpenAddHR }) {
+export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
   const [form, setForm] = useState({
     date: '',
     hour: '',
@@ -18,6 +18,16 @@ export default function BookSlot({ onClose, onOpenAddHR }) {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
   };
+
+  // HR search state for searchable dropdown
+  const [hrQuery, setHrQuery] = useState('');
+  const [showHrDropdown, setShowHrDropdown] = useState(false);
+  const selectedHR = hrList.find((h) => String(h.id) === String(form.hr));
+  const filteredHR = hrList.filter((h) => {
+    if (!hrQuery) return true;
+    const q = hrQuery.toLowerCase();
+    return (h.name || '').toLowerCase().includes(q) || (h.company || '').toLowerCase().includes(q);
+  });
 
   const checkAvailability = () => {
     const ok = validate(['date', 'hour', 'minute', 'duration']);
@@ -67,8 +77,9 @@ export default function BookSlot({ onClose, onOpenAddHR }) {
 
   return (
     <div className="w-full">
-      <div className="max-w-6xl mx-auto mt-8">
-        <div className="relative bg-white rounded-lg border border-gray-100 shadow-lg px-6 py-6 md:px-10 md:py-8">
+      {/* full-page width wrapper with comfortable side padding */}
+      <div className="w-full px-6 lg:px-12 mt-8">
+        <div className="relative bg-white rounded-lg border border-gray-100 shadow-lg px-6 py-6 md:px-10 md:py-8 w-full">
           <div className="flex items-center mb-6">
             <button
               type="button"
@@ -202,9 +213,60 @@ export default function BookSlot({ onClose, onOpenAddHR }) {
               <div className="col-span-12 md:col-span-8 lg:col-span-9">
                 <label className="block text-xs font-medium text-gray-600">* Select HR</label>
                 <div className="mt-1 flex gap-3 items-center">
-                  <select name="hr" value={form.hr} onChange={handleChange} className="flex-1 border border-gray-200 rounded-md px-3 py-2 text-sm h-9">
-                    <option value="">Click to select HR</option>
-                  </select>
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      name="hr_search"
+                      value={showHrDropdown ? hrQuery : selectedHR ? selectedHR.name : hrQuery}
+                      onChange={(e) => {
+                        setHrQuery(e.target.value);
+                        setShowHrDropdown(true);
+                      }}
+                      onFocus={() => setShowHrDropdown(true)}
+                      placeholder="Click to select HR"
+                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                    />
+                    {showHrDropdown && (
+                      <ul className="absolute left-0 right-0 bg-white border border-gray-200 rounded-md mt-1 max-h-48 overflow-auto z-20">
+                        {filteredHR.length > 0 ? (
+                          filteredHR.map((h) => (
+                            <li
+                              key={h.id}
+                              className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+                              onMouseDown={(ev) => {
+                                // onMouseDown to prevent input blur before click
+                                ev.preventDefault();
+                                setForm((f) => ({ ...f, hr: h.id }));
+                                setHrQuery('');
+                                setShowHrDropdown(false);
+                              }}
+                            >
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">{h.name}</div>
+                                <div className="text-xs text-gray-500">{h.company}</div>
+                              </div>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="px-3 py-2 text-sm text-gray-600">
+                            No HR found.
+                            <button
+                              type="button"
+                              onMouseDown={(ev) => {
+                                ev.preventDefault();
+                                setShowHrDropdown(false);
+                                onOpenAddHR();
+                              }}
+                              className="ml-2 text-purple-600 underline"
+                            >
+                              Create new HR
+                            </button>
+                          </li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
+
                   <button type="button" onClick={onOpenAddHR} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-purple-100 text-purple-700 text-sm h-9">
                     + Add New HR
                   </button>

@@ -117,11 +117,17 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
 
             {/* Right - Action Buttons */}
               <div className="flex flex-wrap gap-2 sm:gap-3 w-full">
-              <button className="bg-blue-500 hover:bg-blue-600 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1 flex-shrink-0">
+              {/* Download link - place the PDF file in public/ with this filename:
+                  public/interview_process_candidate_details.pdf */}
+              <a
+                href="/interview_process_candidate_details.pdf"
+                download="Personal_Detail_Form.pdf"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1 flex-shrink-0 inline-flex"
+              >
                 <CloudArrowDownIcon className="w-3 h-3 sm:w-4 sm:h-4" />
                 <span className="hidden sm:inline">Download</span>
                 <span className="sm:hidden">Personal Detail Form</span>
-              </button>
+              </a>
               <button
                 onClick={onOpenAddHR}
                 className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap flex-shrink-0"
@@ -167,10 +173,15 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
 
             {/* Right - Action Buttons */}
             <div className="flex gap-3">
-              <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 whitespace-nowrap">
+              {/* Desktop download link - ensure file is in public/ */}
+              <a
+                href="/interview_process_candidate_details.pdf"
+                download="Personal_Detail_Form.pdf"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 whitespace-nowrap inline-flex"
+              >
                 <CloudArrowDownIcon className="w-4 h-4" />
                 Download Personal Detail Form
-              </button>
+              </a>
               <button
                 onClick={onOpenAddHR}
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap"
@@ -244,7 +255,7 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
           </tbody>
         </table>
       </div>
-      <AddHRModal isOpen={showAddHR} onClose={onCloseAddHR} />
+      <AddHRModal isOpen={showAddHR} onClose={onCloseAddHR} onAdd={() => {}} />
     </div>
   );
 }
@@ -254,6 +265,15 @@ export default function CandidateDashboard() {
   const [showAddHR, setShowAddHR] = useState(false);
   const [showBookSlot, setShowBookSlot] = useState(false);
 
+  // HR list shared state
+  const [hrList, setHrList] = useState([
+    { id: 1, name: 'Poonam Digole', email: '', technology: 'React', mobile: '', jobType: 'onsite', company: 'Acme' },
+  ]);
+
+  const handleAddHR = (hr) => {
+    setHrList((prev) => [...prev, hr]);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -261,7 +281,7 @@ export default function CandidateDashboard() {
       <main className="p-2 sm:p-4 md:p-8">
         {showBookSlot ? (
           // lazy load BookSlot component to keep file smaller
-          <BookSlot onClose={() => setShowBookSlot(false)} onOpenAddHR={() => setShowAddHR(true)} />
+          <BookSlot onClose={() => setShowBookSlot(false)} onOpenAddHR={() => setShowAddHR(true)} hrList={hrList} />
         ) : (
         <CalendarGrid
           showAddHR={showAddHR}
@@ -271,7 +291,6 @@ export default function CandidateDashboard() {
         />
         )}
       </main>
-    
     </div>
   );
 }
