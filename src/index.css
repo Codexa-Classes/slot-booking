@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global tweaks to better match the Slot Booking Calendar UI */
+
+body {
+  @apply bg-slate-100 text-slate-900 antialiased;
+}
+
+/* Hide default scrollbars in WebKit for a cleaner horizontal scroll on the calendar */
+.slot-calendar-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.slot-calendar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.slot-calendar-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.6);
+  border-radius: 9999px;
+}
