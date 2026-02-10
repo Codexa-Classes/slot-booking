@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 export default function AddHRModal({ isOpen, onClose, onAdd }) {
   const [form, setForm] = useState({
@@ -9,6 +9,21 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
     jobType: '',
     company: '',
   });
+
+  // Escape key + scroll lock
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') onClose?.();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -42,9 +57,15 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <button
+        type="button"
+        className="fixed inset-0 bg-black/20"
+        onClick={onClose}
+        aria-label="Close modal"
+      />
+
       {/* modal */}
-      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-3xl mx-4 z-10">
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-xl mx-4 z-10">
         <button
           type="button"
           onClick={onClose}
@@ -54,12 +75,12 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
           ✕
         </button>
 
-        <div className="px-6 py-5 border-b">
-          <h3 className="text-xl font-semibold text-gray-800">Add New HR</h3>
+        <div className="px-6 py-4 border-b">
+          <h3 className="text-base font-semibold text-gray-800">Add New HR</h3>
         </div>
 
         <form className="p-6" onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {/* Left column */}
             <div className="space-y-4">
               <div>
@@ -68,7 +89,7 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
                   name="name"
                   value={form.name}
                   onChange={handleChange}
-                  className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  className="mt-1 block w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white h-9"
                   placeholder="Enter HR Name"
                 />
               </div>
@@ -79,7 +100,7 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
                   name="email"
                   value={form.email}
                   onChange={handleChange}
-                  className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  className="mt-1 block w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white h-9"
                   placeholder="Enter Email"
                 />
               </div>
@@ -90,7 +111,7 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
                   name="jobType"
                   value={form.jobType}
                   onChange={handleChange}
-                  className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  className="mt-1 block w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white h-9"
                 >
                   <option value="">Select Job Type</option>
                   <option value="onsite">Onsite</option>
@@ -104,7 +125,7 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
                   name="company"
                   value={form.company}
                   onChange={handleChange}
-                  className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  className="mt-1 block w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white h-9"
                   placeholder="Enter Company Name"
                 />
               </div>
@@ -118,7 +139,7 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
                   name="technology"
                   value={form.technology}
                   onChange={handleChange}
-                  className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  className="mt-1 block w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white h-9"
                 >
                   <option value="">Select Technology</option>
                   <option value="react">React</option>
@@ -133,7 +154,7 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
                   name="mobile"
                   value={form.mobile}
                   onChange={handleChange}
-                  className="mt-1 block w-full border rounded-md px-3 py-2 text-sm bg-white"
+                  className="mt-1 block w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-white h-9"
                   placeholder="Enter 10 digit number"
                 />
                 <ul className="mt-2 text-xs text-red-500 list-disc list-inside">
@@ -150,14 +171,14 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border text-sm text-gray-700 bg-white"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-200 text-sm text-gray-700 bg-white h-9"
             >
               ✕ Close
             </button>
 
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-emerald-400 hover:bg-emerald-500 text-white font-semibold"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-lime-400 hover:bg-lime-500 text-white font-semibold h-9"
             >
               <span className="text-lg font-bold">+</span>
               Add New HR
