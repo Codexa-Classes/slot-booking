@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { CalendarIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
-import Navbar from '../Components/Navbar';
+import { useNavigate } from 'react-router-dom';
+import { CalendarIcon, CloudArrowDownIcon, HomeIcon, UsersIcon, ChartBarIcon } from '@heroicons/react/24/solid';
 import AddHRModal from '../Components/AddHRModal';
-import BookSlot from './BookSlot';
+import { adminLogout } from './AdminLogin';
 
-// Header Component
-function Header() {
+// Header copied from CandidateDashboard, adjusted for Admin
+function AdminHeader({ onLogout }) {
   return (
     <div className="bg-pink-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3">
       {/* Left Section */}
@@ -24,18 +24,70 @@ function Header() {
       {/* Right Section */}
       <div className="flex items-center gap-2 sm:gap-3 md:gap-4 ml-auto">
         <div className="text-right hidden sm:block">
-          <p className="font-semibold text-xs sm:text-sm md:text-base text-gray-900 truncate">Poonam Digole</p>
-          <p className="text-[10px] sm:text-xs text-gray-500">Candidate</p>
+          <p className="font-semibold text-xs sm:text-sm md:text-base text-gray-900 truncate">Viraj Kadam</p>
+          <p className="text-[10px] sm:text-xs text-gray-500">Admin</p>
         </div>
-        <div className="w-8 sm:w-9 md:w-10 h-8 sm:h-9 md:h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-xs sm:text-sm md:text-base font-semibold text-white">PD</span>
+        <button
+          onClick={onLogout}
+          className="hidden sm:inline-flex rounded-full bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-gray-800"
+        >
+          Logout
+        </button>
+        <div className="w-8 sm:w-9 md:w-10 h-8 sm:h-9 md:h-10 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center flex-shrink-0">
+          <span className="text-xs sm:text-sm md:text-base font-semibold text-white">VK</span>
         </div>
       </div>
     </div>
   );
 }
 
-// Slot Card Component
+// Top navigation row like screenshot
+function AdminTopNav() {
+  const baseBtn =
+    'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all';
+
+  return (
+    <div className="bg-white px-3 sm:px-6 py-2 flex items-center gap-2 shadow-sm border-b border-purple-100">
+      {/* Home - active */}
+      <button className={`${baseBtn} bg-purple-100 text-purple-600 shadow-sm`}>
+        <HomeIcon className="w-4 h-4" />
+        <span>Home</span>
+      </button>
+
+      {/* Candidates */}
+      <button className={`${baseBtn} text-gray-700 hover:text-gray-900`}>
+        <UsersIcon className="w-4 h-4" />
+        <span>Candidates</span>
+      </button>
+
+      {/* Slots */}
+      <button className={`${baseBtn} text-gray-700 hover:text-gray-900`}>
+        <CalendarIcon className="w-4 h-4" />
+        <span>Slots</span>
+      </button>
+
+      {/* Admin Leaves */}
+      <button className={`${baseBtn} text-gray-700 hover:text-gray-900`}>
+        <CalendarIcon className="w-4 h-4" />
+        <span>Admin Leaves</span>
+      </button>
+
+      {/* HRs */}
+      <button className={`${baseBtn} text-gray-700 hover:text-gray-900`}>
+        <UsersIcon className="w-4 h-4" />
+        <span>HRs</span>
+      </button>
+
+      {/* Statistics */}
+      <button className={`${baseBtn} text-gray-700 hover:text-gray-900`}>
+        <ChartBarIcon className="w-4 h-4" />
+        <span>Statistics</span>
+      </button>
+    </div>
+  );
+}
+
+// Slot Card – same as CandidateDashboard
 function SlotCard({ title, time }) {
   return (
     <div className="bg-blue-500 text-white rounded-lg p-2 sm:p-3 text-center shadow-md">
@@ -45,8 +97,8 @@ function SlotCard({ title, time }) {
   );
 }
 
-// Calendar Grid Component
-function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) {
+// Calendar Grid – same layout as CandidateDashboard
+function AdminCalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR }) {
   const timeSlots = [
     '11:00 AM',
     '12:00 PM',
@@ -68,7 +120,6 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
     { name: 'Saturday, Feb 7', date: 7 },
   ];
 
-  // Slot data structure: { day: date, time: index, title: string, timeRange: string }
   const booked = [
     { day: 3, times: [0], title: 'Slot Booked', timeRange: '11:00 AM - 12:00 PM' },
     { day: 3, times: [1], title: 'Slot Booked', timeRange: '12:00 PM - 01:00 PM' },
@@ -76,13 +127,13 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
     { day: 3, times: [3], title: 'Slot Booked', timeRange: '02:00 PM - 03:00 PM' },
     { day: 3, times: [4], title: 'Slot Booked', timeRange: '03:30 PM - 04:30 PM' },
     { day: 3, times: [5], title: 'Slot Booked', timeRange: '05:00 PM - 06:00 PM' },
-    
+
     { day: 4, times: [4], title: 'Slot Booked', timeRange: '03:00 PM - 04:00 PM' },
     { day: 4, times: [5], title: 'Slot Booked', timeRange: '04:00 PM - 05:00 PM' },
-    
+
     { day: 5, times: [4], title: 'Slot Booked', timeRange: '03:00 PM - 04:00 PM' },
     { day: 5, times: [5], title: 'Slot Booked', timeRange: '04:00 PM - 05:00 PM' },
-    
+
     { day: 6, times: [4], title: 'Slot Booked', timeRange: '03:00 PM - 04:00 PM' },
   ];
 
@@ -102,7 +153,7 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
         <div className="md:hidden">
           <div className="flex flex-col items-start justify-between gap-3 mb-3">
             {/* Left - Today Info */}
-              <div className="flex items-center gap-2 text-xs sm:text-sm w-full">
+            <div className="flex items-center gap-2 text-xs sm:text-sm w-full">
               <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 flex-shrink-0" />
               <span className="text-gray-700 font-medium hidden sm:inline">Today: Thu, 5 Feb 2026</span>
               <span className="text-gray-700 font-medium sm:hidden">Thu, 5 Feb</span>
@@ -114,9 +165,7 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
             </h2>
 
             {/* Right - Action Buttons */}
-              <div className="flex flex-wrap gap-2 sm:gap-3 w-full">
-              {/* Download link - place the PDF file in public/ with this filename:
-                  public/interview_process_candidate_details.pdf */}
+            <div className="flex flex-wrap gap-2 sm:gap-3 w-full">
               <a
                 href="/interview_process_candidate_details.pdf"
                 download="Personal_Detail_Form.pdf"
@@ -132,13 +181,6 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
               >
                 <span className="hidden sm:inline">+ Add New HR</span>
                 <span className="sm:hidden">+ HR</span>
-              </button>
-              <button
-                onClick={onOpenBookSlot}
-                className="bg-green-500 hover:bg-green-600 text-white px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap flex-shrink-0"
-              >
-                <span className="hidden sm:inline">+ Book New Slot</span>
-                <span className="sm:hidden">+ Slot</span>
               </button>
             </div>
           </div>
@@ -159,7 +201,7 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
         <div className="hidden md:block">
           <div className="flex items-center justify-between gap-6 mb-6">
             {/* Left - Today Info */}
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <CalendarIcon className="w-6 h-6 text-gray-600" />
               <span className="text-gray-700 font-medium">Today: Thu, 5 Feb 2026</span>
             </div>
@@ -171,7 +213,6 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
 
             {/* Right - Action Buttons */}
             <div className="flex gap-3">
-              {/* Desktop download link - ensure file is in public/ */}
               <a
                 href="/interview_process_candidate_details.pdf"
                 download="Personal_Detail_Form.pdf"
@@ -185,12 +226,6 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap"
               >
                 + Add New HR
-              </button>
-              <button
-                onClick={onOpenBookSlot}
-                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap"
-              >
-                + Book New Slot
               </button>
             </div>
           </div>
@@ -258,37 +293,27 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
   );
 }
 
-// Main Dashboard Component
-export default function CandidateDashboard() {
+export default function AdminDashboard() {
+  const navigate = useNavigate();
   const [showAddHR, setShowAddHR] = useState(false);
-  const [showBookSlot, setShowBookSlot] = useState(false);
 
-  // HR list shared state
-  const [hrList, setHrList] = useState([
-    { id: 1, name: 'Poonam Digole', email: '', technology: 'React', mobile: '', jobType: 'onsite', company: 'Acme' },
-  ]);
-
-  const handleAddHR = (hr) => {
-    setHrList((prev) => [...prev, hr]);
+  const handleLogout = () => {
+    adminLogout();
+    navigate('/login');
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header />
-      <Navbar onOpenAddHR={() => setShowAddHR(true)} />
+      <AdminHeader onLogout={handleLogout} />
+      <AdminTopNav />
       <main className="p-2 sm:p-4 md:p-8">
-        {showBookSlot ? (
-          // lazy load BookSlot component to keep file smaller
-          <BookSlot onClose={() => setShowBookSlot(false)} onOpenAddHR={() => setShowAddHR(true)} hrList={hrList} />
-        ) : (
-        <CalendarGrid
+        <AdminCalendarGrid
           showAddHR={showAddHR}
           onOpenAddHR={() => setShowAddHR(true)}
           onCloseAddHR={() => setShowAddHR(false)}
-          onOpenBookSlot={() => setShowBookSlot(true)}
         />
-        )}
       </main>
     </div>
   );
 }
+
