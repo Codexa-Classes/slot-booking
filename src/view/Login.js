@@ -18,6 +18,10 @@ const handleLogin = () => {
     navigate("/dashboard");
   };
 
+  const handleGoHome = () => {
+    navigate("/");
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       {/* Card Container */}
@@ -35,9 +39,13 @@ const handleLogin = () => {
         </h1>
 
         {/* Navigation Text */}
-        <p className="text-center text-purple-600 text-sm font-medium mb-8">
+        <button
+          type="button"
+          onClick={handleGoHome}
+          className="w-full text-center text-purple-600 text-sm font-medium mb-8 hover:underline"
+        >
           Home
-        </p>
+        </button>
 
         {/* Mobile Number Input */}
         <div className="mb-6">

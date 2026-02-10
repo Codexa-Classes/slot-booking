@@ -1,11 +1,35 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { CalendarIcon, CloudArrowDownIcon } from '@heroicons/react/24/solid';
 import Navbar from '../Components/Navbar';
 import AddHRModal from '../Components/AddHRModal';
 import BookSlot from './BookSlot';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 // Header Component
 function Header() {
+  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target)) setOpen(false);
+    };
+    window.addEventListener('mousedown', onDown);
+    window.addEventListener('touchstart', onDown);
+    return () => {
+      window.removeEventListener('mousedown', onDown);
+      window.removeEventListener('touchstart', onDown);
+    };
+  }, [open]);
+
+  const handleLogout = () => {
+    setOpen(false);
+    navigate('/login');
+  };
+
   return (
     <div className="bg-pink-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3">
       {/* Left Section */}
@@ -22,20 +46,45 @@ function Header() {
       </div>
 
       {/* Right Section */}
-      <div className="flex items-center gap-2 sm:gap-3 md:gap-4 ml-auto">
-        <div className="text-right hidden sm:block">
-          <p className="font-semibold text-xs sm:text-sm md:text-base text-gray-900 truncate">Poonam Digole</p>
-          <p className="text-[10px] sm:text-xs text-gray-500">Candidate</p>
-        </div>
-        <div className="w-8 sm:w-9 md:w-10 h-8 sm:h-9 md:h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
-          <span className="text-xs sm:text-sm md:text-base font-semibold text-white">PD</span>
-        </div>
+      <div className="relative ml-auto" ref={menuRef}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 sm:gap-3 md:gap-4"
+        >
+          <div className="text-right hidden sm:block">
+            <p className="font-semibold text-xs sm:text-sm md:text-base text-gray-900 truncate">Poonam Digole</p>
+            <p className="text-[10px] sm:text-xs text-gray-500">Candidate</p>
+          </div>
+          <div className="w-8 sm:w-9 md:w-10 h-8 sm:h-9 md:h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
+            <span className="text-xs sm:text-sm md:text-base font-semibold text-white">PD</span>
+          </div>
+        </button>
+
+        {open && (
+          <div className="absolute right-0 mt-2 w-60 rounded-lg bg-white shadow-xl border border-gray-200 overflow-hidden z-50">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
+                <span className="text-sm font-semibold text-white">PD</span>
+              </div>
+              <div className="min-w-0">
+                <p className="font-semibold text-sm text-gray-900 truncate">Poonam Digole</p>
+                <p className="text-xs text-gray-500">Candidate</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full bg-red-500 hover:bg-red-600 text-white font-medium py-3 text-sm"
+            >
+              Log Out
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
-
-<Navbar />
 
 // Slot Card Component
 function SlotCard({ title, time }) {
@@ -255,15 +304,24 @@ function CalendarGrid({ showAddHR, onOpenAddHR, onCloseAddHR, onOpenBookSlot }) 
           </tbody>
         </table>
       </div>
-      <AddHRModal isOpen={showAddHR} onClose={onCloseAddHR} onAdd={() => {}} />
     </div>
   );
 }
 
 // Main Dashboard Component
 export default function CandidateDashboard() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [showAddHR, setShowAddHR] = useState(false);
-  const [showBookSlot, setShowBookSlot] = useState(false);
+  const [showBookSlot, setShowBookSlot] = useState(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('view') === 'book';
+  });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    setShowBookSlot(params.get('view') === 'book');
+  }, [location.search]);
 
   // HR list shared state
   const [hrList, setHrList] = useState([
@@ -277,7 +335,12 @@ export default function CandidateDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-      <Navbar onOpenAddHR={() => setShowAddHR(true)} />
+      <Navbar
+        initialActive="home"
+        onOpenAddHR={() => setShowAddHR(true)}
+        onSelectHome={() => navigate('/dashboard')}
+        onSelectSlots={() => navigate('/dashboard/slots')}
+      />
       <main className="p-2 sm:p-4 md:p-8">
         {showBookSlot ? (
           // lazy load BookSlot component to keep file smaller
@@ -291,6 +354,13 @@ export default function CandidateDashboard() {
         />
         )}
       </main>
+
+      {/* Add New HR modal (opens only when showAddHR=true) */}
+      <AddHRModal
+        isOpen={showAddHR}
+        onClose={() => setShowAddHR(false)}
+        onAdd={handleAddHR}
+      />
     </div>
   );
 }

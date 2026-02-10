@@ -6,6 +6,7 @@ import CalendarToolbar from './Components/CalendarToolbar';
 import SlotCalendar from './Components/SlotCalendar';
 import Login from './view/Login';
 import CandidateDashboard from './view/CandidateDashboard';
+import MySlots from './view/MySlots';
 import {
   FIXED_TODAY,
   getWeekStart,
@@ -127,6 +128,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<CandidateDashboard />} />
+        <Route path="/dashboard/slots" element={<MySlots />} />
         <Route path="/" element={<CalendarPage />} />
       </Routes>
     </Router>

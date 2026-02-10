@@ -91,47 +91,48 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
             <h2 className="mx-auto text-purple-600 font-semibold text-sm md:text-base">Book Slot</h2>
           </div>
 
-          <div className="grid grid-cols-12 gap-4 items-start">
-          <div className="col-span-12 lg:col-span-10">
-            <div className="grid grid-cols-12 gap-4 items-start">
-              <div className="col-span-12 md:col-span-5 lg:col-span-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* COLUMN 1 (Left) */}
+            <div className="flex flex-col gap-3">
+              {/* Date field */}
+              <div>
                 <label className="block text-xs font-medium text-gray-600">* Date</label>
-                <div className="mt-1 relative">
-                  {/* Desktop date input */}
-                  <input
-                    ref={dateRef}
-                    type="date"
-                    name="date"
-                    value={form.date}
-                    onChange={handleChange}
-                    className="hidden sm:block w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9 placeholder-gray-400 pr-10 appearance-none"
-                    style={{ WebkitAppearance: 'none', MozAppearance: 'textfield', appearance: 'none' }}
-                  />
-
-                  {/* Mobile date display button (opens full-screen calendar) */}
-                  <button
-                    type="button"
-                    className="block sm:hidden w-full text-left border border-gray-200 rounded-md px-3 py-2 text-sm h-9 bg-white"
-                    onClick={() => setShowMobileCalendar(true)}
-                  >
-                    {form.date ? new Date(form.date).toLocaleDateString() : 'mm/dd/yyyy'}
-                  </button>
-
-                  <button
-                    type="button"
-                    aria-label="Open date picker"
-                    onClick={() => {
-                      if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                        setShowMobileCalendar(true);
-                      } else {
-                        dateRef.current && dateRef.current.focus();
-                      }
-                    }}
-                    className="absolute right-3 top-2.5 text-gray-400"
-                  >
-                    <CalendarIcon className="w-4 h-4" />
-                  </button>
+                <div className="mt-1">
+                  {/* Desktop: input + icon inside same box */}
+                  <div className="hidden sm:block relative w-full">
+                    <input
+                      ref={dateRef}
+                      type="date"
+                      name="date"
+                      value={form.date}
+                      onChange={handleChange}
+                      className="w-full border border-gray-200 rounded-md pl-3 pr-10 py-2 text-sm h-9 placeholder-gray-400 appearance-none"
+                      style={{ WebkitAppearance: 'none', MozAppearance: 'textfield', appearance: 'none' }}
+                    />
+                    <button
+                      type="button"
+                      aria-label="Open date picker"
+                      onClick={() => dateRef.current && dateRef.current.focus()}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    >
+                      <CalendarIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {/* Mobile: tap-to-open with icon inside */}
+                  <div className="sm:hidden relative w-full">
+                    <button
+                      type="button"
+                      className="w-full text-left border border-gray-200 rounded-md pl-3 pr-10 py-2 text-sm h-9 bg-white"
+                      onClick={() => setShowMobileCalendar(true)}
+                    >
+                      {form.date ? new Date(form.date).toLocaleDateString() : 'mm/dd/yyyy'}
+                    </button>
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <CalendarIcon className="w-4 h-4" />
+                    </span>
+                  </div>
                 </div>
+                {/* Quick date links */}
                 <div className="mt-2 text-xs text-purple-600 flex gap-3">
                   <button type="button" className="text-purple-600">Today</button>
                   <button type="button" className="text-purple-600">Tomorrow</button>
@@ -140,14 +141,34 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                 </div>
               </div>
 
-              <div className="col-span-6 md:col-span-4 lg:col-span-3">
+              {/* Round dropdown */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600">* Round</label>
+                <select
+                  name="round"
+                  value={form.round}
+                  onChange={handleChange}
+                  className="mt-1 md:w-56 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                >
+                  <option value="">Select Round</option>
+                  <option>Round 1</option>
+                  <option>Round 2</option>
+                </select>
+                {errors.round && <p className="text-xs text-red-500 mt-1">{errors.round}</p>}
+              </div>
+            </div>
+
+            {/* COLUMN 2 (Middle) */}
+            <div className="flex flex-col gap-3">
+              {/* Start Time */}
+              <div>
                 <label className="block text-xs font-medium text-gray-600">* Start Time</label>
-                <div className="mt-1 flex gap-2">
+                <div className="mt-1 flex gap-2 items-center">
                   <select
                     name="hour"
                     value={form.hour}
                     onChange={handleChange}
-                    className="w-1/2 border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                    className="w-20 border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
                   >
                     <option value="">Hour</option>
                     {Array.from({ length: 9 }).map((_, i) => {
@@ -166,13 +187,18 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                     name="minute"
                     value={form.minute}
                     onChange={handleChange}
-                    className="w-1/2 border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                    className="w-20 border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
                   >
                     <option value="00">00</option>
                     <option value="15">15</option>
                     <option value="30">30</option>
                     <option value="45">45</option>
                   </select>
+
+                  {/* AM indicator box (visual) */}
+                  <div className="w-12 h-9 border border-gray-200 rounded-md flex items-center justify-center text-sm text-gray-500 bg-gray-50">
+                    AM
+                  </div>
                 </div>
                 {errors.time && <p className="text-xs text-red-500 mt-1">{errors.time}</p>}
                 {errors.hour && <p className="text-xs text-red-500 mt-1">{errors.hour}</p>}
@@ -180,40 +206,11 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                 <p className="text-xs text-red-500 mt-1">Book slots between 11 AM to 7 PM</p>
               </div>
 
-              <div className="col-span-6 md:col-span-3 lg:col-span-3">
-                <label className="block text-xs font-medium text-gray-600">* Meeting Duration</label>
-                <select name="duration" value={form.duration} onChange={handleChange} className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9">
-                  <option value="">Select Duration</option>
-                  <option value="15">15 Minutes</option>
-                  <option value="30">30 Minutes</option>
-                  <option value="45">45 Minutes</option>
-                  <option value="60">60 Minutes</option>
-                </select>
-                {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
-              </div>
-
-              <div className="col-span-12 flex justify-end lg:hidden">
-                <button type="button" onClick={checkAvailability} className="w-48 inline-flex items-center justify-center px-4 py-2 rounded-md bg-yellow-200 hover:bg-yellow-300 text-sm h-9">
-                  Check Availability
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-6 grid grid-cols-12 gap-4 items-start">
-              <div className="col-span-12 md:col-span-4 lg:col-span-3">
-                <label className="block text-xs font-medium text-gray-600">* Round</label>
-                <select name="round" value={form.round} onChange={handleChange} className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9">
-                  <option value="">Select Round</option>
-                  <option>Round 1</option>
-                  <option>Round 2</option>
-                </select>
-                {errors.round && <p className="text-xs text-red-500 mt-1">{errors.round}</p>}
-              </div>
-
-              <div className="col-span-12 md:col-span-8 lg:col-span-9">
+              {/* Select HR + Add New HR (same row) */}
+              <div>
                 <label className="block text-xs font-medium text-gray-600">* Select HR</label>
-                <div className="mt-1 flex gap-3 items-center">
-                  <div className="relative flex-1">
+                <div className="mt-1 flex items-center gap-3">
+                  <div className="relative flex-1 min-w-0">
                     <input
                       type="text"
                       name="hr_search"
@@ -227,129 +224,136 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                       className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
                     />
                     {showHrDropdown && (
-                      <ul className="absolute left-0 right-0 bg-white border border-gray-200 rounded-md mt-1 max-h-48 overflow-auto z-20">
-                        {filteredHR.length > 0 ? (
-                          filteredHR.map((h) => (
-                            <li
-                              key={h.id}
-                              className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
-                              onMouseDown={(ev) => {
-                                // onMouseDown to prevent input blur before click
-                                ev.preventDefault();
-                                setForm((f) => ({ ...f, hr: h.id }));
-                                setHrQuery('');
-                                setShowHrDropdown(false);
-                              }}
-                            >
-                              <div>
-                                <div className="text-sm font-medium text-gray-800">{h.name}</div>
-                                <div className="text-xs text-gray-500">{h.company}</div>
-                              </div>
-                            </li>
-                          ))
-                        ) : (
-                          <li className="px-3 py-2 text-sm text-gray-600">
-                            No HR found.
-                            <button
-                              type="button"
-                              onMouseDown={(ev) => {
-                                ev.preventDefault();
-                                setShowHrDropdown(false);
-                                onOpenAddHR();
-                              }}
-                              className="ml-2 text-purple-600 underline"
-                            >
-                              Create new HR
-                            </button>
+                    <ul className="absolute left-0 right-0 bg-white border border-gray-200 rounded-md mt-1 max-h-48 overflow-auto z-20">
+                      {filteredHR.length > 0 ? (
+                        filteredHR.map((h) => (
+                          <li
+                            key={h.id}
+                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+                            onMouseDown={(ev) => {
+                              // onMouseDown to prevent input blur before click
+                              ev.preventDefault();
+                              setForm((f) => ({ ...f, hr: h.id }));
+                              setHrQuery('');
+                              setShowHrDropdown(false);
+                            }}
+                          >
+                            <div>
+                              <div className="text-sm font-medium text-gray-800">{h.name}</div>
+                              <div className="text-xs text-gray-500">{h.company}</div>
+                            </div>
                           </li>
-                        )}
-                      </ul>
+                        ))
+                      ) : (
+                        <li className="px-3 py-2 text-sm text-gray-600">
+                          No HR found.
+                          <button
+                            type="button"
+                            onMouseDown={(ev) => {
+                              ev.preventDefault();
+                              setShowHrDropdown(false);
+                              onOpenAddHR();
+                            }}
+                            className="ml-2 text-purple-600 underline"
+                          >
+                            Create new HR
+                          </button>
+                        </li>
+                      )}
+                    </ul>
                     )}
                   </div>
-
-                  <button type="button" onClick={onOpenAddHR} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-purple-100 text-purple-700 text-sm h-9">
+                  <button type="button" onClick={onOpenAddHR} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-purple-100 text-purple-700 text-sm h-9 flex-shrink-0">
                     + Add New HR
                   </button>
                 </div>
+
                 {errors.hr && <p className="text-xs text-red-500 mt-1">{errors.hr}</p>}
+                {/* helper text */}
                 <div className="mt-1">
                   <p className="text-xs text-red-500">• Create new HR if not listed.</p>
                   <p className="text-xs text-green-600">• Search HR name or Company name.</p>
                 </div>
               </div>
             </div>
-          </div>
 
-          <div className="col-span-12 lg:col-span-2">
-            {/* Mobile: full width below form */}
-            <div className="lg:hidden mt-4">
-              <button
-                type="button"
-                onClick={bookSlot}
-                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9"
-              >
-                Book My Slot
-              </button>
+            {/* COLUMN 3 (Right) - Meeting Duration + Check Availability same row, then Book My Slot */}
+            <div className="flex flex-col gap-3 h-full">
+              {/* Meeting Duration (left) + Check Availability (right) - same row as in screenshot */}
+              <div className="flex items-end justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs font-medium text-gray-600">* Meeting Duration</label>
+                  <select name="duration" value={form.duration} onChange={handleChange} className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9">
+                    <option value="">Select Duration</option>
+                    <option value="15">15 Minutes</option>
+                    <option value="30">30 Minutes</option>
+                    <option value="45">45 Minutes</option>
+                    <option value="60">60 Minutes</option>
+                  </select>
+                  {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
+                </div>
+                <button
+                  type="button"
+                  onClick={checkAvailability}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-yellow-200 hover:bg-yellow-300 text-sm h-9 flex-shrink-0"
+                >
+                  Check Availability
+                </button>
+              </div>
+
+              {/* Book button bottom-right */}
+              <div className="mt-auto flex justify-end">
+                <button
+                  type="button"
+                  onClick={bookSlot}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9 md:w-36 justify-center"
+                >
+                  Book My Slot
+                </button>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Desktop: absolute positioned Check and Book buttons at card corners */}
-        <div className="hidden lg:block absolute right-6 top-1/2 transform -translate-y-1/2">
-          <button
-            type="button"
-            onClick={checkAvailability}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-yellow-200 hover:bg-yellow-300 text-sm h-9"
-          >
-            Check Availability
-          </button>
-        </div>
+          {/* (removed duplicate mobile book button - layout now uses the grid above) */}
 
-        <div className="hidden lg:block absolute right-6 bottom-6">
-          <button
-            type="button"
-            onClick={bookSlot}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9"
-          >
-            Book My Slot
-          </button>
+          {/* Desktop corner buttons removed to avoid duplicates; using in-grid controls instead */}
+
+          {/* Mobile full-screen calendar modal (kept inside card wrapper) */}
+          {showMobileCalendar && (
+            <div className="fixed inset-0 z-50 bg-white">
+              <div className="h-full flex flex-col">
+                <div className="p-4 border-b flex items-center justify-between">
+                  <h3 className="text-sm font-semibold">Select date</h3>
+                  <button
+                    onClick={() => setShowMobileCalendar(false)}
+                    className="px-3 py-1 rounded bg-gray-100"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="flex-1 p-6 flex items-center justify-center">
+                  <input
+                    type="date"
+                    className="w-full max-w-md border border-gray-200 rounded-md p-3 text-lg"
+                    value={form.date}
+                    onChange={(e) => {
+                      handleChange(e);
+                    }}
+                  />
+                </div>
+                <div className="p-4 border-t">
+                  <button
+                    onClick={() => setShowMobileCalendar(false)}
+                    className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-purple-600 text-white"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-    </div>
-      {/* Mobile full-screen calendar modal */}
-      {showMobileCalendar && (
-        <div className="fixed inset-0 z-50 bg-white">
-          <div className="h-full flex flex-col">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Select date</h3>
-              <button
-                onClick={() => setShowMobileCalendar(false)}
-                className="px-3 py-1 rounded bg-gray-100"
-              >
-                Close
-              </button>
-            </div>
-            <div className="flex-1 p-6 flex items-center justify-center">
-              <input
-                type="date"
-                className="w-full max-w-md border border-gray-200 rounded-md p-3 text-lg"
-                value={form.date}
-                onChange={(e) => {
-                  handleChange(e);
-                }}
-              />
-            </div>
-            <div className="p-4 border-t">
-              <button
-                onClick={() => setShowMobileCalendar(false)}
-                className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-purple-600 text-white"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
