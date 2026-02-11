@@ -5,7 +5,7 @@
 /* Global tweaks to better match the Slot Booking Calendar UI */
 
 body {
-  @apply bg-slate-100 text-slate-900 antialiased;
+  @apply bg-slate-100 text-slate-900 antialiased text-[12px];
 }
 
 /* Hide default scrollbars in WebKit for a cleaner horizontal scroll on the calendar */

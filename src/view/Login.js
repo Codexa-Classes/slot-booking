@@ -2,10 +2,6 @@ import React, { useState } from 'react';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from "react-router-dom";
 
-const ADMIN_MOBILE = '9999999999';
-const ADMIN_PASSWORD = '9999';
-const ADMIN_AUTH_KEY = 'sb_admin_authed';
-
 export default function Login() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [mobileNumber, setMobileNumber] = useState('');
@@ -19,19 +15,7 @@ const navigate = useNavigate();
 
 const handleLogin = () => {
     console.log('Login with:', { mobileNumber, password });
-    // Admin hardcoded login
-    if (mobileNumber === ADMIN_MOBILE && password === ADMIN_PASSWORD) {
-      localStorage.setItem(ADMIN_AUTH_KEY, 'true');
-      navigate("/admin");
-      return;
-    }
-
-    // Candidate login (current behavior)
     navigate("/dashboard");
-  };
-
-  const handleGoHome = () => {
-    navigate("/");
   };
 
   return (
@@ -51,13 +35,9 @@ const handleLogin = () => {
         </h1>
 
         {/* Navigation Text */}
-        <button
-          type="button"
-          onClick={handleGoHome}
-          className="w-full text-center text-purple-600 text-sm font-medium mb-8 hover:underline"
-        >
+        <p className="text-center text-purple-600 text-sm font-medium mb-8">
           Home
-        </button>
+        </p>
 
         {/* Mobile Number Input */}
         <div className="mb-6">

@@ -1,13 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './index.css';
 import Header from './Components/Header';
 import CalendarToolbar from './Components/CalendarToolbar';
 import SlotCalendar from './Components/SlotCalendar';
 import Login from './view/Login';
 import CandidateDashboard from './view/CandidateDashboard';
-import { isAdminAuthed } from './view/AdminLogin';
-import AdminDashboard from './view/AdminDashboard';
 import {
   FIXED_TODAY,
   getWeekStart,
@@ -50,12 +48,32 @@ function App() {
     [weekStart, weekEnd],
   );
 
-  const todaysSlotsCount = useMemo(() => {
-    return MOCK_EVENTS.filter((event) => {
-      const eventDate = parseISOToDate(event.start);
-      return isSameDay(eventDate, FIXED_TODAY);
-    }).length;
-  }, []);
+  const todaysSlotsCount = useMemo(
+    () =>
+      MOCK_EVENTS.filter((event) => {
+        const eventDate = parseISOToDate(event.start);
+        return isSameDay(eventDate, FIXED_TODAY);
+      }).length,
+    [],
+  );
+
+  const weeklySlotsCount = useMemo(
+    () =>
+      MOCK_EVENTS.filter((event) => {
+        const eventDate = parseISOToDate(event.start);
+        return eventDate >= weekStart && eventDate <= weekEnd;
+      }).length,
+    [weekStart, weekEnd],
+  );
+
+  const weekEvents = useMemo(
+    () =>
+      MOCK_EVENTS.filter((event) => {
+        const eventDate = parseISOToDate(event.start);
+        return eventDate >= weekStart && eventDate <= weekEnd;
+      }),
+    [weekStart, weekEnd],
+  );
 
   const handlePrevWeek = () => {
     const prev = new Date(weekStart);
@@ -74,21 +92,20 @@ function App() {
   };
 
   const CalendarPage = () => (
-    <div className="min-h-screen bg-slate-100 text-slate-900 antialiased pt-16">
-      <Header todaysSlotsCount={todaysSlotsCount} fullWidth />
+    <div className="min-h-screen bg-slate-100 text-slate-900 antialiased">
+      <Header fullWidth />
 
-      <main className="w-full mt-4 px-4 pb-6 sm:pb-10">
+      <main className="w-full mt-2 px-4 pb-6 sm:pb-10">
         <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
           <CalendarToolbar
             rangeLabel={rangeLabel}
-            onPrevWeek={handlePrevWeek}
-            onNextWeek={handleNextWeek}
+            onNextWeek={null}
             onToday={handleToday}
             todaysSlotsCount={todaysSlotsCount}
-            onOpenMobileCalendar={() => setShowMobileCalendar(true)}
+            weeklySlotsCount={weeklySlotsCount}
           />
           <div className="mt-4">
-            <SlotCalendar weekStart={weekStart} events={MOCK_EVENTS} />
+            <SlotCalendar weekStart={weekStart} events={weekEvents} />
           </div>
         </div>
       </main>
@@ -124,23 +141,11 @@ function App() {
     </div>
   );
 
-  const AdminProtected = ({ children }) => {
-    return isAdminAuthed() ? children : <Navigate to="/login" replace />;
-  };
-
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<CandidateDashboard />} />
-        <Route
-          path="/admin"
-          element={
-            <AdminProtected>
-              <AdminDashboard />
-            </AdminProtected>
-          }
-        />
         <Route path="/" element={<CalendarPage />} />
       </Routes>
     </Router>

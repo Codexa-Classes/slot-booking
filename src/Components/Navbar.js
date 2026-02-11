@@ -3,8 +3,8 @@ import { HomeIcon, CalendarIcon, UsersIcon, Bars3Icon, XMarkIcon } from '@heroic
 
 
 // Navigation Bar Component
-export default function Navbar({ onOpenAddHR, onSelectHome, onSelectSlots, initialActive = 'home' }) {
-  const [active, setActive] = useState(initialActive);
+export default function Navbar({ onOpenAddHR }) {
+  const [active, setActive] = useState('home');
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
@@ -28,13 +28,10 @@ export default function Navbar({ onOpenAddHR, onSelectHome, onSelectSlots, initi
             <button
               key={item.id}
               onClick={() => {
+                // eslint-disable-next-line no-console
+                console.log('Navbar: clicked', item.id);
                 setActive(item.id);
-
-                if (item.id === 'home' && typeof onSelectHome === 'function') {
-                  onSelectHome();
-                } else if (item.id === 'slots' && typeof onSelectSlots === 'function') {
-                  onSelectSlots();
-                } else if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
+                if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
                   onOpenAddHR();
                 }
               }}
@@ -76,12 +73,13 @@ export default function Navbar({ onOpenAddHR, onSelectHome, onSelectSlots, initi
                 <button
                   key={item.id}
                   onClick={() => {
+                    // debug: log which mobile nav item was clicked
+                    // eslint-disable-next-line no-console
+                    console.log('Navbar (mobile): clicked', item.id);
                     handleNavClick(item.id);
-                    if (item.id === 'home' && typeof onSelectHome === 'function') {
-                      onSelectHome();
-                    } else if (item.id === 'slots' && typeof onSelectSlots === 'function') {
-                      onSelectSlots();
-                    } else if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
+                    if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
+                      // eslint-disable-next-line no-console
+                      console.log('Navbar (mobile): opening Add HR modal');
                       onOpenAddHR();
                     }
                   }}
