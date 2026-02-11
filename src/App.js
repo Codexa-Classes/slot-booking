@@ -1,11 +1,13 @@
 import React, { useMemo, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './index.css';
 import Header from './Components/Header';
 import CalendarToolbar from './Components/CalendarToolbar';
 import SlotCalendar from './Components/SlotCalendar';
 import Login from './view/Login';
 import CandidateDashboard from './view/CandidateDashboard';
+import AdminDashboard from './view/AdminDashboard';
+import { isAdminAuthed } from './view/AdminLogin';
 import {
   FIXED_TODAY,
   getWeekStart,
@@ -75,18 +77,6 @@ function App() {
     [weekStart, weekEnd],
   );
 
-  const handlePrevWeek = () => {
-    const prev = new Date(weekStart);
-    prev.setDate(prev.getDate() - 7);
-    setWeekStart(prev);
-  };
-
-  const handleNextWeek = () => {
-    const next = new Date(weekStart);
-    next.setDate(next.getDate() + 7);
-    setWeekStart(next);
-  };
-
   const handleToday = () => {
     setWeekStart(getWeekStart(FIXED_TODAY));
   };
@@ -141,11 +131,23 @@ function App() {
     </div>
   );
 
+  const AdminProtected = ({ children }) => {
+    return isAdminAuthed() ? children : <Navigate to="/login" replace />;
+  };
+
   return (
     <Router>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/dashboard" element={<CandidateDashboard />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminProtected>
+              <AdminDashboard />
+            </AdminProtected>
+          }
+        />
         <Route path="/" element={<CalendarPage />} />
       </Routes>
     </Router>
