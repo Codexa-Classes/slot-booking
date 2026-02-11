@@ -19,31 +19,40 @@ const handleLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-start pt-16 sm:pt-24 p-4">
+      {/* Home button outside card, centered */}
+      <button
+        type="button"
+        onClick={handleGoHome}
+        className="mb-4 text-purple-600 text-sm font-medium hover:underline"
+      >
+        Home
+      </button>
+
       {/* Card Container */}
       <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8">
-        {/* Logo */}
-        <div className="flex justify-center mb-6">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-            <span className="text-4xl font-bold text-white">V</span>
-          </div>
-        </div>
-
         {/* Heading */}
-        <h1 className="text-3xl font-bold text-center text-gray-900 mb-1">
+        <h1 className="text-3xl font-bold text-center text-gray-900 mb-8">
           Slot Booking
         </h1>
 
         {/* Navigation Text */}
-        <p className="text-center text-purple-600 text-sm font-medium mb-8">
+        <button
+          type="button"
+          onClick={handleGoHome}
+          className="w-full text-center text-purple-600 text-sm font-medium mb-8 hover:underline"
+        >
           Home
-        </p>
+        </button>
 
         {/* Mobile Number Input */}
         <div className="mb-6">
+          <label className="block text-sm font-medium text-purple-600 mb-2">
+            Mobile No
+          </label>
           <input
             type="tel"
-            placeholder="Mobile Number"
+            placeholder="Enter mobile number"
             value={mobileNumber}
             onChange={(e) => setMobileNumber(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
