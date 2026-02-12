@@ -2,8 +2,8 @@
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000;
 
-// Today is fixed to match the design
-export const FIXED_TODAY = new Date('2026-02-04T00:00:00');
+// Today is fixed so "current week" is Feb 9 – 14, 2026
+export const FIXED_TODAY = new Date('2026-02-11T00:00:00');
 
 export function startOfDay(date) {
   const d = new Date(date);

@@ -10,6 +10,7 @@ import {
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/solid';
 import SlotCalendar from '../Components/SlotCalendar';
+import CalendarToolbar from '../Components/CalendarToolbar';
 import { adminLogout } from './AdminLogin';
 import {
   FIXED_TODAY,
@@ -18,7 +19,6 @@ import {
   formatWeekRangeLabel,
   parseISOToDate,
   isSameDay,
-  formatHeaderToday,
 } from '../calendar';
 
 // Header copied from CandidateDashboard, adjusted for Admin
@@ -2094,7 +2094,8 @@ export default function AdminDashboard() {
   const [selectedSlotsCandidate, setSelectedSlotsCandidate] = useState(null);
   const [hrs, setHrs] = useState(MOCK_HRS);
   const [hrSearch, setHrSearch] = useState('');
-  const [weekStart, setWeekStart] = useState(getWeekStart(FIXED_TODAY));
+  const today = new Date();
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
 
   const weekEnd = useMemo(() => {
     const days = getWeekDays(weekStart, 6);
@@ -2109,9 +2110,9 @@ export default function AdminDashboard() {
   const todaysSlotsCount = useMemo(() => {
     return ADMIN_EVENTS.filter((event) => {
       const eventDate = parseISOToDate(event.start);
-      return isSameDay(eventDate, FIXED_TODAY);
+      return isSameDay(eventDate, today);
     }).length;
-  }, []);
+  }, [today]);
 
   const weekSlotsCount = useMemo(() => {
     return ADMIN_EVENTS.filter((event) => {
@@ -2119,11 +2120,6 @@ export default function AdminDashboard() {
       return d >= weekStart && d <= weekEnd;
     }).length;
   }, [weekStart, weekEnd]);
-
-  const todayHeaderLabel = useMemo(
-    () => formatHeaderToday(FIXED_TODAY),
-    [],
-  );
 
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
@@ -2176,7 +2172,7 @@ export default function AdminDashboard() {
   };
 
   const handleToday = () => {
-    setWeekStart(getWeekStart(FIXED_TODAY));
+    setWeekStart(getWeekStart(new Date()));
   };
 
   const handleToggleStatus = (id) => {
@@ -2352,25 +2348,20 @@ export default function AdminDashboard() {
           <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
             {/* Admin calendar header - match screenshot */}
             <div className="border-b border-slate-200 pb-3 sm:pb-4">
-              <div className="flex items-center justify-between gap-3">
-                {/* Left: Today label */}
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700">
-                  <CalendarIcon className="w-4 h-4 text-purple-500" />
-                  <span className="font-medium">
-                    Today: {todayHeaderLabel}
-                  </span>
+              <div className="relative flex items-center justify-between gap-3">
+                {/* Left: Today (no date text) */}
+                <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700 w-32 min-w-0">
+                  <CalendarIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                  <span className="font-medium truncate">Today</span>
                 </div>
 
-                {/* Center: Title */}
-                <button
-                  type="button"
-                  className="text-xs sm:text-sm font-semibold text-purple-600 hover:text-purple-700"
-                >
+                {/* Center: Slot Booking Calendar */}
+                <span className="absolute left-1/2 -translate-x-1/2 text-xs sm:text-sm font-semibold text-purple-600">
                   Slot Booking Calendar
-                </button>
+                </span>
 
-                {/* Right: Download button + stats */}
-                <div className="flex items-center gap-3">
+                {/* Right: Download button only (stats are in CalendarToolbar below) */}
+                <div className="flex items-center justify-end">
                   <a
                     href="/interview_process_candidate_details.pdf"
                     download="Personal_Detail_Form.pdf"
@@ -2390,60 +2381,24 @@ export default function AdminDashboard() {
                     </svg>
                     <span>Download Personal Detail Form</span>
                   </a>
-                  <div className="hidden sm:flex items-center gap-6 text-[11px] text-slate-600">
-                    <div className="flex flex-col items-center">
-                      <span className="text-sm font-semibold text-slate-900">
-                        {todaysSlotsCount}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        Total Slots
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        Today
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-center">
-                      <span className="text-sm font-semibold text-slate-900">
-                        {weekSlotsCount}
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        Total This Week
-                      </span>
-                      <span className="text-[10px] text-slate-500">
-                        Slots
-                      </span>
-                    </div>
-                  </div>
                 </div>
               </div>
 
-              {/* Second row: week nav + range */}
-              <div className="mt-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleNextWeek}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-slate-900 text-white text-sm shadow hover:bg-slate-800"
-                  >
-                    ›
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleToday}
-                    className="rounded-md border border-purple-300 px-3 py-1 text-xs font-semibold text-purple-600 bg-white hover:bg-purple-50"
-                  >
-                    today
-                  </button>
-                </div>
-                <div className="flex-1 text-center text-sm sm:text-base font-semibold text-slate-900">
-                  {rangeLabel}
-                </div>
-                <div className="w-16 sm:w-24" />
+              {/* Same CalendarToolbar as home: forward + today, range, totals */}
+              <div className="mt-3">
+                <CalendarToolbar
+                  today={today}
+                  rangeLabel={rangeLabel}
+                  onNextWeek={handleNextWeek}
+                  onToday={handleToday}
+                  todaysSlotsCount={todaysSlotsCount}
+                  weeklySlotsCount={weekSlotsCount}
+                />
               </div>
             </div>
 
-            <div className="mt-4">
-              <SlotCalendar weekStart={weekStart} events={ADMIN_EVENTS} />
+            <div className="mt-4 flex justify-center">
+              <SlotCalendar today={today} weekStart={weekStart} events={ADMIN_EVENTS} />
             </div>
           </div>
         )}

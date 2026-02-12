@@ -37,7 +37,8 @@ const MOCK_EVENTS = [
 ];
 
 function App() {
-  const [weekStart, setWeekStart] = useState(getWeekStart(FIXED_TODAY));
+  const today = new Date();
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
 
   const weekEnd = useMemo(() => {
@@ -54,9 +55,9 @@ function App() {
     () =>
       MOCK_EVENTS.filter((event) => {
         const eventDate = parseISOToDate(event.start);
-        return isSameDay(eventDate, FIXED_TODAY);
+        return isSameDay(eventDate, today);
       }).length,
-    [],
+    [today],
   );
 
   const weeklySlotsCount = useMemo(
@@ -78,7 +79,15 @@ function App() {
   );
 
   const handleToday = () => {
-    setWeekStart(getWeekStart(FIXED_TODAY));
+    setWeekStart(getWeekStart(new Date()));
+  };
+
+  const handleNextWeek = () => {
+    setWeekStart((prev) => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + 7);
+      return next;
+    });
   };
 
   const CalendarPage = () => (
@@ -88,14 +97,15 @@ function App() {
       <main className="w-full mt-2 px-4 pb-6 sm:pb-10">
         <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
           <CalendarToolbar
+            today={today}
             rangeLabel={rangeLabel}
-            onNextWeek={null}
+            onNextWeek={handleNextWeek}
             onToday={handleToday}
             todaysSlotsCount={todaysSlotsCount}
             weeklySlotsCount={weeklySlotsCount}
           />
           <div className="mt-4">
-            <SlotCalendar weekStart={weekStart} events={weekEvents} />
+            <SlotCalendar today={today} weekStart={weekStart} events={weekEvents} />
           </div>
         </div>
       </main>

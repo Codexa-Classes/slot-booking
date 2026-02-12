@@ -1,7 +1,7 @@
 import React from 'react';
-import { FIXED_TODAY, formatHeaderToday } from '../calendar';
 
 function CalendarToolbar({
+  today,
   rangeLabel,
   onPrevWeek,
   onNextWeek,
@@ -10,12 +10,10 @@ function CalendarToolbar({
   weeklySlotsCount,
   onOpenMobileCalendar,
 }) {
-  const todayLabel = formatHeaderToday(FIXED_TODAY);
-
   return (
-    <div className="flex items-center justify-between border-b border-slate-200 bg-white px-1 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-3 gap-1 sm:gap-2 md:gap-3 min-h-12 sm:min-h-14 overflow-x-auto">
+    <div className="relative flex items-center justify-between border-b border-slate-200 bg-white px-1 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-3 gap-1 sm:gap-2 md:gap-3 min-h-12 sm:min-h-14 overflow-x-auto">
       {/* Left Navigation Controls (next only) */}
-      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 z-10">
         <button
           type="button"
           onClick={
@@ -49,19 +47,13 @@ function CalendarToolbar({
         </button>
       </div>
 
-      {/* Center - Date Range */}
-      <div className="flex items-center justify-center flex-1 min-w-0">
-        <span className="text-[10px] sm:text-xs md:text-sm font-semibold text-slate-800 truncate px-1">
-          {rangeLabel}
-        </span>
-        <span className="hidden sm:block text-[9px] md:text-[10px] font-medium text-slate-600 whitespace-nowrap ml-1 md:ml-2 px-1">
-          {todayLabel}
-        </span>
-        {/* Calendar open button removed per design */}
-      </div>
+      {/* Center - Date Range (correct center) */}
+      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] sm:text-xs md:text-sm font-semibold text-slate-800 whitespace-nowrap">
+        {rangeLabel}
+      </span>
 
-      {/* Right - Today & Weekly Slots summary (like screenshot) */}
-      <div className="flex items-center gap-8 sm:gap-10 md:gap-12 flex-shrink-0 pr-2">
+      {/* Right - Today & Weekly Slots summary */}
+      <div className="flex items-center gap-8 sm:gap-10 md:gap-12 flex-shrink-0 pr-2 z-10">
         <div className="flex flex-col items-center">
           <span className="text-sm sm:text-base font-semibold text-slate-900">
             {todaysSlotsCount}
