@@ -211,6 +211,7 @@ const MOCK_CANDIDATES = [
     regime: 'new-70',
     status: 'Active',
     selected: true,
+    referredBy: 'Nilesh Sir',
   },
   {
     id: 2,
@@ -224,6 +225,7 @@ const MOCK_CANDIDATES = [
     regime: '-',
     status: 'Active',
     selected: false,
+    referredBy: 'Anil Shinde Sir',
   },
   {
     id: 3,
@@ -237,6 +239,21 @@ const MOCK_CANDIDATES = [
     regime: '-',
     status: 'Active',
     selected: false,
+    referredBy: 'Vishal Sir',
+  },
+  {
+    id: 4,
+    name: 'Kiiran Shinde',
+    mobile: '9876543210',
+    experience: '',
+    technologies: ['Python'],
+    totalScheduled: '1',
+    lastInterview: '11 Feb 2026',
+    payment: '₹0',
+    regime: 'new-70',
+    status: 'Active',
+    selected: false,
+    referredBy: 'Viraj Kadam Sir',
   },
 ];
 
@@ -272,6 +289,17 @@ const MOCK_SLOTS = [
     createdAt: '10 Feb 2026, 02:29 PM',
     dateLabel: 'Wed, 11 Feb 2026 (Tomorrow)',
     timeLabel: '04:00 PM – 05:00 PM (1 Hour)',
+    status: 'Approved',
+  },
+  {
+    id: 4,
+    name: 'Kiiran Shinde',
+    company: 'KPIT',
+    technology: 'Python',
+    round: 'Round 1',
+    createdAt: '10 Feb 2026, 02:00 PM',
+    dateLabel: 'Wed, 11 Feb 2026',
+    timeLabel: '03:00 Pm - 03:45 Pm',
     status: 'Approved',
   },
 ];
@@ -444,15 +472,17 @@ function AdminCandidatesTable({
             </button>
           </div>
 
-          {/* All dropdown */}
+          {/* Filter dropdown */}
           <select
             value={filter}
             onChange={(e) => onChangeFilter(e.target.value)}
             className="rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] sm:text-xs text-slate-700"
           >
             <option value="all">All</option>
-            <option value="selected">Selected</option>
-            <option value="unselected">Unselected</option>
+            <option value="anil_sir">Anil sir</option>
+            <option value="viraj_sir">Viraj sir</option>
+            <option value="nilesh_sir">Nilesh sir</option>
+            <option value="vishal_sir">Vishal sir</option>
           </select>
 
           {/* Search */}
@@ -550,7 +580,7 @@ function AdminCandidatesTable({
                       onClick={() => onViewCandidate(c.id)}
                       className="h-7 w-7 rounded bg-sky-500 text-white text-xs font-semibold hover:bg-sky-600 flex items-center justify-center"
                     >
-                      <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+                      <i className="fa-solid fa-eye" aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => onEditCandidate(c.id)}
@@ -843,6 +873,398 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
           className="inline-flex items-center justify-center rounded-full bg-purple-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-purple-600"
         >
           Add Candidate
+        </button>
+      </div>
+    </form>
+  );
+}
+
+const EDIT_TECH_OPTIONS = [
+  'PHP',
+  'Python',
+  'Business Analyst',
+  '.net Developer',
+  'Data Science',
+  'MERN Stack',
+  'MEAN Stack',
+  'Java',
+  'React Developer',
+  'App Support',
+  'Automation Testing',
+  'Dev Ops(Awg)',
+  'Dev Ops(Azure)',
+  'Data Analysts',
+  'AEM',
+  'Power BI',
+  'Node.js Developer',
+  'Other',
+];
+
+function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
+  const [form, setForm] = useState({
+    name: candidate?.name || '',
+    mobile: candidate?.mobile || '',
+    experience: candidate?.experience || '',
+    password: candidate?.password || candidate?.mobile?.slice(-4) || '',
+    technology: Array.isArray(candidate?.technologies) ? [...candidate.technologies] : [],
+    payment: candidate?.payment?.replace(/[₹,]|\s/g, '') || '0',
+    referredBy: candidate?.referredBy || 'Viraj Kadam Sir',
+    selected: candidate?.selected ?? false,
+    selectedDate: candidate?.selectedDate || '',
+    joiningDate: candidate?.joiningDate || '',
+    selectedCompany: candidate?.selectedCompany || '',
+    package: candidate?.package || '',
+  });
+  const [showPassword, setShowPassword] = useState(true);
+  const [showTechDropdown, setShowTechDropdown] = useState(false);
+
+  const handleChange = (field) => (e) => {
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const toggleTechOption = (value) => {
+    setForm((prev) => {
+      const exists = prev.technology.includes(value);
+      return {
+        ...prev,
+        technology: exists
+          ? prev.technology.filter((v) => v !== value)
+          : [...prev.technology, value],
+      };
+    });
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(form);
+  };
+
+  const techOptions = [...new Set([...form.technology, ...EDIT_TECH_OPTIONS])];
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6"
+    >
+      {/* Header: grey back button left, title centered */}
+      <div className="flex items-center justify-between mb-4 gap-3">
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+          >
+            <ArrowLeftIcon className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 text-center">
+          <h2 className="text-sm sm:text-base font-semibold text-purple-600">
+            Edit Candidate
+          </h2>
+        </div>
+
+        <div className="w-10 sm:w-16" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+        {/* Candidate Name */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-700">
+            <span className="text-red-500">*</span> Candidate Name
+          </label>
+          <input
+            type="text"
+            value={form.name}
+            onChange={handleChange('name')}
+            placeholder="Enter candidate name"
+            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+          />
+        </div>
+
+        {/* Mobile */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-700">
+            <span className="text-red-500">*</span> Mobile
+          </label>
+          <input
+            type="tel"
+            value={form.mobile}
+            onChange={handleChange('mobile')}
+            placeholder="Enter mobile number"
+            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+          />
+        </div>
+
+        {/* Experience */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-700">
+            Experience
+          </label>
+          <input
+            type="text"
+            value={form.experience}
+            onChange={handleChange('experience')}
+            placeholder="Enter experience (e.g., 2 yrs)"
+            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+          />
+        </div>
+
+        {/* Password with show/hide toggle */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-700">
+            <span className="text-red-500">*</span> Password
+          </label>
+          <div className="flex items-stretch">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={form.password}
+              onChange={handleChange('password')}
+              className="flex-1 rounded-l-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-200 rounded-r-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              className="inline-flex items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-slate-50 px-3 text-slate-500 hover:bg-slate-100"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <i
+                className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}
+                aria-hidden="true"
+              />
+            </button>
+          </div>
+        </div>
+
+        {/* Technology (multi-select with tags) */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-700">
+            <span className="text-red-500">*</span> Technology
+          </label>
+          <div className="relative">
+            <div
+              className="w-full flex items-center justify-between rounded-md border border-slate-200 bg-white px-2 py-1 text-xs sm:text-sm text-slate-800 cursor-pointer focus-within:ring-2 focus-within:ring-purple-200"
+              onClick={() => setShowTechDropdown((v) => !v)}
+            >
+              <div className="flex flex-wrap gap-1 flex-1 min-h-[30px] items-center">
+                {form.technology.length ? (
+                  form.technology.map((tech) => (
+                    <button
+                      key={tech}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleTechOption(tech);
+                      }}
+                      className="inline-flex items-center gap-1 rounded bg-slate-200 px-2 py-0.5 text-[11px] text-slate-800"
+                    >
+                      <span>{tech}</span>
+                      <span className="text-slate-500 text-[10px]">×</span>
+                    </button>
+                  ))
+                ) : (
+                  <span className="text-slate-400 text-xs sm:text-sm">
+                    Choose Technologies...
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 pl-2">
+                {form.technology.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setForm((prev) => ({ ...prev, technology: [] }));
+                    }}
+                    className="text-slate-400 text-xs hover:text-slate-600"
+                    aria-label="Clear technologies"
+                  >
+                    ×
+                  </button>
+                )}
+                <i className="fa-solid fa-chevron-down text-slate-400 text-xs" />
+              </div>
+            </div>
+            {showTechDropdown && (
+              <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
+                {techOptions.map((opt) => {
+                  const selected = form.technology.includes(opt);
+                  return (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => {
+                        toggleTechOption(opt);
+                        setShowTechDropdown(false);
+                      }}
+                      className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm border-b border-slate-100 last:border-b-0 ${
+                        selected
+                          ? 'bg-sky-100 text-slate-900'
+                          : 'bg-white text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Payment */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-700">
+            Payment
+          </label>
+          <input
+            type="text"
+            value={form.payment}
+            onChange={handleChange('payment')}
+            placeholder="Enter payment amount"
+            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+          />
+        </div>
+
+        {/* Selected toggle - always visible */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-semibold text-slate-700">
+            Selected
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={form.selected}
+              onClick={() => setForm((prev) => ({ ...prev, selected: !prev.selected }))}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-purple-200 focus:ring-offset-2 ${
+                form.selected ? 'bg-purple-500' : 'bg-slate-200'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+                  form.selected ? 'translate-x-5' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+            <span className="text-[11px] text-slate-600">
+              {form.selected ? 'Selected' : 'Not Selected'}
+            </span>
+          </div>
+        </div>
+
+        {/* Normal form: Referred By dropdown - only when NOT selected */}
+        {!form.selected && (
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-700">
+              <span className="text-red-500">*</span> Referred By
+            </label>
+            <select
+              value={form.referredBy}
+              onChange={handleChange('referredBy')}
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-200"
+            >
+              <option value="">Select Referred By</option>
+              <option value="Anil Shinde Sir">Anil Shinde Sir</option>
+              <option value="Viraj Kadam Sir">Viraj Kadam Sir</option>
+              <option value="Nilesh Sir">Nilesh Sir</option>
+              <option value="Vishal Sir">Vishal Sir</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Selected form: extra fields - only when Selected is ON */}
+      {form.selected && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start mt-4 pt-4 border-t border-slate-200">
+          {/* Selected Date */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-700">
+              <span className="text-red-500">*</span> Selected Date
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={form.selectedDate}
+                onChange={handleChange('selectedDate')}
+                placeholder="mm/dd/yyyy"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+              />
+              <i className="fa-solid fa-calendar absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" aria-hidden="true" />
+            </div>
+          </div>
+
+          {/* Joining Date */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-700">
+              <span className="text-red-500">*</span> Joining Date
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={form.joiningDate}
+                onChange={handleChange('joiningDate')}
+                placeholder="mm/dd/yyyy"
+                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+              />
+              <i className="fa-solid fa-calendar absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" aria-hidden="true" />
+            </div>
+          </div>
+
+          {/* Selected Company */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-700">
+              Selected Company
+            </label>
+            <input
+              type="text"
+              value={form.selectedCompany}
+              onChange={handleChange('selectedCompany')}
+              placeholder="Enter company name"
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+            />
+          </div>
+
+          {/* Package */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-700">
+              <span className="text-red-500">*</span> Package
+            </label>
+            <input
+              type="text"
+              value={form.package}
+              onChange={handleChange('package')}
+              placeholder="Enter package amount"
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+            />
+          </div>
+
+          {/* Referred By - in selected view */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-slate-700">
+              <span className="text-red-500">*</span> Referred By
+            </label>
+            <select
+              value={form.referredBy}
+              onChange={handleChange('referredBy')}
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-200"
+            >
+              <option value="">Select Referred By</option>
+              <option value="Anil Shinde Sir">Anil Shinde Sir</option>
+              <option value="Viraj Kadam Sir">Viraj Kadam Sir</option>
+              <option value="Nilesh Sir">Nilesh Sir</option>
+              <option value="Vishal Sir">Vishal Sir</option>
+            </select>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 flex justify-end">
+        <button
+          type="submit"
+          className="inline-flex items-center justify-center rounded-full bg-purple-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-purple-600"
+        >
+          Update Candidate
         </button>
       </div>
     </form>
@@ -1671,9 +2093,12 @@ function AdminCandidateSlotsView({ data, onBack }) {
   const { name, candidate, slots } = data;
 
   const regime = candidate?.regime || 'new-70';
-  const payment = candidate?.payment || '₹8';
-  const experience = candidate?.experience || '5';
-  const referredBy = candidate?.referredBy || 'Nilesh Sir';
+  const payment = candidate?.payment || '₹0';
+  const experience =
+    candidate?.experience && candidate.experience !== '-'
+      ? candidate.experience
+      : 'Not specified';
+  const referredBy = candidate?.referredBy || 'Viraj Kadam Sir';
   const totalCount = slots.length || 0;
 
   return (
@@ -2092,6 +2517,8 @@ export default function AdminDashboard() {
   const [slotSearch, setSlotSearch] = useState('');
   const [slots, setSlots] = useState(MOCK_SLOTS);
   const [selectedSlotsCandidate, setSelectedSlotsCandidate] = useState(null);
+  const [selectedViewCandidate, setSelectedViewCandidate] = useState(null);
+  const [editingCandidate, setEditingCandidate] = useState(null);
   const [hrs, setHrs] = useState(MOCK_HRS);
   const [hrSearch, setHrSearch] = useState('');
   const today = new Date();
@@ -2143,6 +2570,22 @@ export default function AdminDashboard() {
     return candidates.filter((c) => {
       if (candidateFilter === 'selected' && !c.selected) return false;
       if (candidateFilter === 'unselected' && c.selected) return false;
+      if (candidateFilter === 'anil_sir') {
+        const ref = (c.referredBy || '').toLowerCase();
+        if (!ref.includes('anil')) return false;
+      }
+      if (candidateFilter === 'viraj_sir') {
+        const ref = (c.referredBy || '').toLowerCase();
+        if (!ref.includes('viraj')) return false;
+      }
+      if (candidateFilter === 'nilesh_sir') {
+        const ref = (c.referredBy || '').toLowerCase();
+        if (!ref.includes('nilesh')) return false;
+      }
+      if (candidateFilter === 'vishal_sir') {
+        const ref = (c.referredBy || '').toLowerCase();
+        if (!ref.includes('vishal')) return false;
+      }
       if (candidateSearch.trim()) {
         const q = candidateSearch.toLowerCase();
         if (!c.name.toLowerCase().includes(q) && !c.mobile.includes(q)) {
@@ -2192,14 +2635,19 @@ export default function AdminDashboard() {
   const handleViewCandidate = (id) => {
     const candidate = candidates.find((c) => c.id === id);
     if (candidate) {
-      alert(`View candidate:\n${candidate.name} (${candidate.mobile})`);
+      const candidateSlots = slots.filter((s) => s.name === candidate.name);
+      setSelectedViewCandidate({
+        name: candidate.name,
+        candidate,
+        slots: candidateSlots,
+      });
     }
   };
 
   const handleEditCandidate = (id) => {
     const candidate = candidates.find((c) => c.id === id);
     if (candidate) {
-      alert(`Edit candidate (placeholder):\n${candidate.name}`);
+      setEditingCandidate(candidate);
     }
   };
 
@@ -2252,6 +2700,47 @@ export default function AdminDashboard() {
                 setCandidates((prev) => [...prev, newCandidate]);
                 setShowAddForm(false);
               }}
+            />
+          ) : editingCandidate ? (
+            <AdminEditCandidateForm
+              candidate={editingCandidate}
+              onBack={() => setEditingCandidate(null)}
+              onSubmit={(data) => {
+                const paymentVal = data.payment?.replace(/[₹,]|\s/g, '') || '0';
+                setCandidates((prev) =>
+                  prev.map((c) =>
+                    c.id === editingCandidate.id
+                      ? {
+                          ...c,
+                          name: data.name || c.name,
+                          mobile: data.mobile || c.mobile,
+                          experience: data.experience || c.experience || '-',
+                          technologies: Array.isArray(data.technology)
+                            ? data.technology
+                            : data.technology
+                            ? [data.technology]
+                            : c.technologies,
+                          payment: paymentVal ? `₹${paymentVal}` : '₹0',
+                          referredBy: data.referredBy || c.referredBy,
+                          selected: data.selected ?? c.selected,
+                          password: data.password,
+                          ...(data.selected && {
+                            selectedDate: data.selectedDate,
+                            joiningDate: data.joiningDate,
+                            selectedCompany: data.selectedCompany,
+                            package: data.package,
+                          }),
+                        }
+                      : c,
+                  ),
+                );
+                setEditingCandidate(null);
+              }}
+            />
+          ) : selectedViewCandidate ? (
+            <AdminCandidateSlotsView
+              data={selectedViewCandidate}
+              onBack={() => setSelectedViewCandidate(null)}
             />
           ) : (
             <AdminCandidatesTable
