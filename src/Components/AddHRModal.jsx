@@ -9,6 +9,7 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
     jobType: '',
     company: '',
   });
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
 
   // Escape key + scroll lock
   useEffect(() => {
@@ -32,26 +33,50 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
     setForm((f) => ({ ...f, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     // Call parent handler if provided
     if (onAdd) {
-      // create an id for the HR
-      const newHR = { id: Date.now(), ...form };
-      onAdd(newHR);
+      try {
+        // create an id for the HR
+        const newHR = { id: Date.now(), ...form };
+        await onAdd(newHR);
+        
+        // Show success toast in form header
+        setShowSuccessToast(true);
+        
+        // Hide toast after 2 seconds and close modal
+        setTimeout(() => {
+          setShowSuccessToast(false);
+          // reset form
+          setForm({
+            name: '',
+            email: '',
+            technology: '',
+            mobile: '',
+            jobType: '',
+            company: '',
+          });
+          onClose();
+        }, 2000);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to add HR:', err);
+      }
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('Add HR', form);
+      // reset form (optional)
+      setForm({
+        name: '',
+        email: '',
+        technology: '',
+        mobile: '',
+        jobType: '',
+        company: '',
+      });
+      onClose();
     }
-    // eslint-disable-next-line no-console
-    console.log('Add HR', form);
-    // reset form (optional)
-    setForm({
-      name: '',
-      email: '',
-      technology: '',
-      mobile: '',
-      jobType: '',
-      company: '',
-    });
-    onClose();
   };
 
   return (
@@ -75,8 +100,30 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
           ✕
         </button>
 
-        <div className="px-6 py-4 border-b">
+        <div className="px-6 py-4 border-b relative">
           <h3 className="text-base font-semibold text-gray-800">Add New HR</h3>
+          
+          {/* Success Toast in Form Header */}
+          {showSuccessToast && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 transition-opacity duration-300">
+              <div className="bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 13l4 4L19 7"
+                  />
+                </svg>
+                <span className="font-semibold text-xs">HR Created Successfully</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <form className="p-6" onSubmit={handleSubmit}>

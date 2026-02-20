@@ -9,6 +9,8 @@ import {
   onSnapshot,
   doc,
   deleteDoc,
+  addDoc,
+  serverTimestamp,
 } from 'firebase/firestore';
 import Navbar from '../Components/Navbar';
 import AddHRModal from '../Components/AddHRModal';
@@ -476,8 +478,38 @@ export default function CandidateDashboard() {
     loadUserName();
   }, []);
 
-  const handleAddHR = (hr) => {
-    setHrList((prev) => [...prev, hr]);
+  const handleAddHR = async (hr) => {
+    try {
+      // Save to Firestore
+      const docRef = await addDoc(collection(db, 'hrs'), {
+        name: hr.name || '',
+        email: hr.email || '',
+        mobile: hr.mobile || '',
+        company: hr.company || '',
+        technology: hr.technology || '',
+        jobType: hr.jobType || '',
+        addedBy: 'Candidate',
+        createdAt: serverTimestamp(),
+      });
+      
+      // Update local state with Firestore ID
+      setHrList((prev) => [
+        {
+          id: docRef.id,
+          name: hr.name || '',
+          email: hr.email || '',
+          company: hr.company || '',
+          technology: hr.technology || '',
+          mobile: hr.mobile || '',
+          jobType: hr.jobType || '',
+        },
+        ...prev,
+      ]);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to save HR to Firestore:', err);
+      throw err; // Re-throw so modal can handle error
+    }
   };
 
   const handleNavClick = (navId) => {

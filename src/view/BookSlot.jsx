@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { CalendarIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from 'react-router-dom';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
@@ -19,6 +19,9 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
   const dateRef = useRef(null);
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
   const [errors, setErrors] = useState({});
+  const [availabilityState, setAvailabilityState] = useState('idle'); // 'idle' | 'needs_fields' | 'available'
+  const [availabilityMessage, setAvailabilityMessage] = useState('');
+  const [meetingEndTime, setMeetingEndTime] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -31,6 +34,21 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
       }
       return updated;
     });
+  };
+
+  // If date/time/duration changes, force re-check availability
+  useEffect(() => {
+    setAvailabilityState('idle');
+    setAvailabilityMessage('');
+    setMeetingEndTime('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.date, form.hour, form.minute, form.duration]);
+
+  const handleClose = () => {
+    setAvailabilityState('idle');
+    setAvailabilityMessage('');
+    setMeetingEndTime('');
+    onClose?.();
   };
 
   // Calculate AM/PM based on selected hour
@@ -82,9 +100,36 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
 
   const checkAvailability = () => {
     const ok = validate(['date', 'hour', 'minute', 'duration']);
-    if (!ok) return;
-    // eslint-disable-next-line no-alert
-    alert('Availability checked for ' + form.date + ' at ' + (form.hour && form.minute ? `${form.hour}:${form.minute}` : ''));
+    if (!ok) {
+      setAvailabilityState('needs_fields');
+      setAvailabilityMessage(
+        'Please select date, start time, and meeting duration.',
+      );
+      return;
+    }
+
+    // Compute meeting end time label
+    let endLabel = '';
+    try {
+      const [hh, mm] = String(form.hour || '')
+        .split(':')
+        .map((v) => parseInt(v, 10));
+      const minuteVal = parseInt(form.minute, 10);
+      const dur = parseInt(form.duration, 10);
+      const start = new Date();
+      start.setHours(hh, Number.isNaN(minuteVal) ? 0 : minuteVal, 0, 0);
+      const end = new Date(start.getTime() + (Number.isNaN(dur) ? 0 : dur) * 60000);
+      endLabel = end.toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+    } catch {
+      endLabel = '';
+    }
+
+    setMeetingEndTime(endLabel);
+    setAvailabilityState('available');
+    setAvailabilityMessage('');
   };
 
   const bookSlot = async () => {
@@ -184,7 +229,7 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
           <div className="flex items-center mb-6">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-700 mr-4"
             >
               ‹
@@ -199,7 +244,7 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600">* Date</label>
                 <div className="mt-1">
-                  {/* Desktop: input with native calendar icon */}
+                  {/* Desktop: input with calendar icon inside */}
                   <div className="hidden sm:block relative w-full">
                     <input
                       ref={dateRef}
@@ -207,8 +252,11 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                       name="date"
                       value={form.date}
                       onChange={handleChange}
-                      className="w-full border border-gray-200 rounded-md pl-3 pr-3 py-2 text-sm h-9 placeholder-gray-400"
+                      className="w-full border border-gray-200 rounded-md pl-3 pr-10 py-2 text-sm h-9 placeholder-gray-400"
                     />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                      <CalendarIcon className="w-4 h-4" />
+                    </span>
                   </div>
                   {/* Mobile: tap-to-open with icon */}
                   <div className="sm:hidden relative w-full">
@@ -257,21 +305,23 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                 </div>
               </div>
 
-              {/* Round dropdown */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600">* Round</label>
-                <select
-                  name="round"
-                  value={form.round}
-                  onChange={handleChange}
-                  className="mt-1 md:w-56 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
-                >
-                  <option value="">Select Round</option>
-                  <option>Round 1</option>
-                  <option>Round 2</option>
-                </select>
-                {errors.round && <p className="text-xs text-red-500 mt-1">{errors.round}</p>}
-              </div>
+              {/* Round dropdown - visible only after availability confirmed */}
+              {availabilityState === 'available' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600">* Round</label>
+                  <select
+                    name="round"
+                    value={form.round}
+                    onChange={handleChange}
+                    className="mt-1 md:w-56 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                  >
+                    <option value="">Select Round</option>
+                    <option>Round 1</option>
+                    <option>Round 2</option>
+                  </select>
+                  {errors.round && <p className="text-xs text-red-500 mt-1">{errors.round}</p>}
+                </div>
+              )}
             </div>
 
             {/* COLUMN 2 (Middle) */}
@@ -290,10 +340,9 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                     {Array.from({ length: 9 }).map((_, i) => {
                       const hh = 11 + i; // 11..19
                       const displayHour = hh % 12 === 0 ? 12 : hh % 12;
-                      const ampm = hh < 12 ? 'AM' : 'PM';
                       return (
                         <option key={hh} value={String(hh).padStart(2, '0')}>
-                          {displayHour} {ampm}
+                          {displayHour}
                         </option>
                       );
                     })}
@@ -322,75 +371,77 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                 <p className="text-xs text-red-500 mt-1">Book slots between 11 AM to 7 PM</p>
               </div>
 
-              {/* Select HR + Add New HR (same row) */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600">* Select HR</label>
-                <div className="mt-1 flex items-center gap-3">
-                  <div className="relative flex-1 min-w-0">
-                    <input
-                      type="text"
-                      name="hr_search"
-                      value={showHrDropdown ? hrQuery : selectedHR ? selectedHR.name : hrQuery}
-                      onChange={(e) => {
-                        setHrQuery(e.target.value);
-                        setShowHrDropdown(true);
-                      }}
-                      onFocus={() => setShowHrDropdown(true)}
-                      placeholder="Click to select HR"
-                      className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
-                    />
-                    {showHrDropdown && (
-                    <ul className="absolute left-0 right-0 bg-white border border-gray-200 rounded-md mt-1 max-h-48 overflow-auto z-20">
-                      {filteredHR.length > 0 ? (
-                        filteredHR.map((h) => (
-                          <li
-                            key={h.id}
-                            className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
-                            onMouseDown={(ev) => {
-                              // onMouseDown to prevent input blur before click
-                              ev.preventDefault();
-                              setForm((f) => ({ ...f, hr: h.id }));
-                              setHrQuery('');
-                              setShowHrDropdown(false);
-                            }}
-                          >
-                            <div>
-                              <div className="text-sm font-medium text-gray-800">{h.name}</div>
-                              <div className="text-xs text-gray-500">{h.company}</div>
-                            </div>
+              {/* Select HR + Add New HR (same row) - visible only after availability confirmed */}
+              {availabilityState === 'available' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600">* Select HR</label>
+                  <div className="mt-1 flex items-center gap-3">
+                    <div className="relative flex-1 min-w-0">
+                      <input
+                        type="text"
+                        name="hr_search"
+                        value={showHrDropdown ? hrQuery : selectedHR ? selectedHR.name : hrQuery}
+                        onChange={(e) => {
+                          setHrQuery(e.target.value);
+                          setShowHrDropdown(true);
+                        }}
+                        onFocus={() => setShowHrDropdown(true)}
+                        placeholder="Click to select HR"
+                        className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                      />
+                      {showHrDropdown && (
+                      <ul className="absolute left-0 right-0 bg-white border border-gray-200 rounded-md mt-1 max-h-48 overflow-auto z-20">
+                        {filteredHR.length > 0 ? (
+                          filteredHR.map((h) => (
+                            <li
+                              key={h.id}
+                              className="px-3 py-2 hover:bg-gray-50 cursor-pointer flex justify-between items-center"
+                              onMouseDown={(ev) => {
+                                // onMouseDown to prevent input blur before click
+                                ev.preventDefault();
+                                setForm((f) => ({ ...f, hr: h.id }));
+                                setHrQuery('');
+                                setShowHrDropdown(false);
+                              }}
+                            >
+                              <div>
+                                <div className="text-sm font-medium text-gray-800">{h.name}</div>
+                                <div className="text-xs text-gray-500">{h.company}</div>
+                              </div>
+                            </li>
+                          ))
+                        ) : (
+                          <li className="px-3 py-2 text-sm text-gray-600">
+                            No HR found.
+                            <button
+                              type="button"
+                              onMouseDown={(ev) => {
+                                ev.preventDefault();
+                                setShowHrDropdown(false);
+                                onOpenAddHR();
+                              }}
+                              className="ml-2 text-purple-600 underline"
+                            >
+                              Create new HR
+                            </button>
                           </li>
-                        ))
-                      ) : (
-                        <li className="px-3 py-2 text-sm text-gray-600">
-                          No HR found.
-                          <button
-                            type="button"
-                            onMouseDown={(ev) => {
-                              ev.preventDefault();
-                              setShowHrDropdown(false);
-                              onOpenAddHR();
-                            }}
-                            className="ml-2 text-purple-600 underline"
-                          >
-                            Create new HR
-                          </button>
-                        </li>
+                        )}
+                      </ul>
                       )}
-                    </ul>
-                    )}
+                    </div>
+                    <button type="button" onClick={onOpenAddHR} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-purple-100 text-purple-700 text-sm h-9 flex-shrink-0">
+                      + Add New HR
+                    </button>
                   </div>
-                  <button type="button" onClick={onOpenAddHR} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-purple-100 text-purple-700 text-sm h-9 flex-shrink-0">
-                    + Add New HR
-                  </button>
-                </div>
 
-                {errors.hr && <p className="text-xs text-red-500 mt-1">{errors.hr}</p>}
-                {/* helper text */}
-                <div className="mt-1">
-                  <p className="text-xs text-red-500">• Create new HR if not listed.</p>
-                  <p className="text-xs text-green-600">• Search HR name or Company name.</p>
+                  {errors.hr && <p className="text-xs text-red-500 mt-1">{errors.hr}</p>}
+                  {/* helper text */}
+                  <div className="mt-1">
+                    <p className="text-xs text-red-500">• Create new HR if not listed.</p>
+                    <p className="text-xs text-green-600">• Search HR name or Company name.</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* COLUMN 3 (Right) - Meeting Duration + Check Availability same row, then Book My Slot */}
@@ -410,25 +461,48 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                   </select>
                   {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
                 </div>
-                <button
-                  type="button"
-                  onClick={checkAvailability}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-yellow-200 hover:bg-yellow-300 text-sm h-9 flex-shrink-0"
-                >
-                  Check Availability
-                </button>
+                {form.date && (
+                  <button
+                    type="button"
+                    onClick={checkAvailability}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-yellow-200 hover:bg-yellow-300 text-sm h-9 flex-shrink-0"
+                  >
+                    Check Availability
+                  </button>
+                )}
               </div>
 
+              {availabilityState === 'needs_fields' && (
+                <p className="text-xs text-red-500 text-center">
+                  {availabilityMessage || 'Please select date, start time, and meeting duration.'}
+                </p>
+              )}
+
+              {availabilityState === 'available' && (
+                <div className="text-center">
+                  {meetingEndTime && (
+                    <p className="text-xs text-red-500">
+                      Meeting End Time: {meetingEndTime}
+                    </p>
+                  )}
+                  <p className="text-xs text-green-600 font-semibold">
+                    Time slot is available.
+                  </p>
+                </div>
+              )}
+
               {/* Book button bottom-right */}
-              <div className="mt-auto flex justify-end">
-                <button
-                  type="button"
-                  onClick={bookSlot}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9 md:w-36 justify-center"
-                >
-                  Book My Slot
-                </button>
-              </div>
+              {availabilityState === 'available' && (
+                <div className="mt-auto flex justify-end">
+                  <button
+                    type="button"
+                    onClick={bookSlot}
+                    className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9 md:w-36 justify-center"
+                  >
+                    Book My Slot
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
