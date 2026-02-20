@@ -6,6 +6,10 @@ import {
   getDocs,
   query,
   where,
+  serverTimestamp,
+  onSnapshot,
+  doc,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import {
@@ -1619,6 +1623,7 @@ function AdminHRsTable({
   onChangeSearch,
   onAddHR,
   onUpdateHR,
+  onDeleteHR,
 }) {
   const [companyFilter, setCompanyFilter] = useState('');
   const [techFilter, setTechFilter] = useState('');
@@ -1637,6 +1642,8 @@ function AdminHRsTable({
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const [showTechDropdown, setShowTechDropdown] = useState(false);
   const [showJobTypeDropdown, setShowJobTypeDropdown] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [confirmDeleteName, setConfirmDeleteName] = useState('');
 
   const companyOptions = useMemo(
     () =>
@@ -2006,6 +2013,10 @@ function AdminHRsTable({
                     <button
                       type="button"
                       className="h-7 w-7 rounded bg-red-500 text-white text-xs font-semibold hover:bg-red-600 flex items-center justify-center"
+                      onClick={() => {
+                        setConfirmDeleteId(hr.id);
+                        setConfirmDeleteName(hr.name || '');
+                      }}
                       aria-label="Delete HR"
                     >
                       <i className="fa-solid fa-trash" aria-hidden="true" />
@@ -2017,6 +2028,48 @@ function AdminHRsTable({
           </tbody>
         </table>
       </div>
+
+      {/* Delete confirmation modal */}
+      {confirmDeleteId != null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="w-full max-w-sm rounded-xl bg-white shadow-lg px-6 py-5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-2">
+              Are you sure you want to delete?
+            </h3>
+            <p className="text-xs text-slate-600 mb-4">
+              HR:{' '}
+              <span className="font-semibold">
+                {confirmDeleteName || 'Unnamed'}
+              </span>
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmDeleteId(null);
+                  setConfirmDeleteName('');
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-full border border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteHR && confirmDeleteId != null) {
+                    onDeleteHR(confirmDeleteId);
+                  }
+                  setConfirmDeleteId(null);
+                  setConfirmDeleteName('');
+                }}
+                className="px-3 py-1.5 text-xs font-semibold rounded-full bg-red-500 text-white hover:bg-red-600"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add HR modal */}
       {showAddModal && (
@@ -2620,6 +2673,65 @@ export default function AdminDashboard() {
     loadCandidatesFromFirestore();
   }, []);
 
+  // Load HRs from Firestore on mount and listen for real-time updates
+  useEffect(() => {
+    const q = query(collection(db, 'hrs'));
+    
+    // Real-time listener for HRs collection
+    const unsubscribe = onSnapshot(
+      q,
+      (querySnapshot) => {
+        const firestoreHRs = [];
+        
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          firestoreHRs.push({
+            id: `firestore_${doc.id}`, // Prefix to distinguish from mock HRs
+            firestoreId: doc.id, // Keep original Firestore ID
+            name: data.name || '',
+            email: data.email || '',
+            mobile: data.mobile || '-',
+            company: data.company || '',
+            technology: data.technology || '',
+            jobType: data.jobType || '',
+            addedBy: data.addedBy || 'Candidate',
+            createdAt: data.createdAt,
+          });
+        });
+
+        // Merge Firestore HRs with mock HRs, avoiding duplicates by email
+        setHrs((prev) => {
+          const mockHRs = prev.filter((h) => !String(h.id).startsWith('firestore_'));
+          const existingEmails = new Set(
+            [...mockHRs, ...firestoreHRs].map((h) => h.email?.toLowerCase())
+          );
+          
+          // Filter out duplicates from Firestore HRs
+          const uniqueFirestoreHRs = firestoreHRs.filter(
+            (h) => !mockHRs.some((m) => m.email?.toLowerCase() === h.email?.toLowerCase())
+          );
+          
+          // Assign numeric IDs for display consistency (starting from max mock ID + 1)
+          let maxMockId = mockHRs.length > 0 
+            ? Math.max(...mockHRs.map((h) => (typeof h.id === 'number' ? h.id : 0))) 
+            : 0;
+          
+          const numberedFirestoreHRs = uniqueFirestoreHRs.map((h, idx) => ({
+            ...h,
+            id: maxMockId + idx + 1, // Numeric ID for table display
+          }));
+          
+          return [...mockHRs, ...numberedFirestoreHRs];
+        });
+      },
+      (err) => {
+        console.error('Error listening to HRs collection:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
   const [slotFilter, setSlotFilter] = useState('all');
   const [slotSearch, setSlotSearch] = useState('');
   const [slots, setSlots] = useState([]);
@@ -2808,6 +2920,20 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteHR = async (id) => {
+    const target = hrs.find((h) => h.id === id);
+    setHrs((prev) => prev.filter((h) => h.id !== id));
+
+    if (target && target.firestoreId) {
+      try {
+        await deleteDoc(doc(db, 'hrs', target.firestoreId));
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to delete HR from Firestore:', err);
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <AdminHeader />
@@ -2939,9 +3065,10 @@ export default function AdminDashboard() {
             search={hrSearch}
             onBackToHome={() => setActiveTab('home')}
             onChangeSearch={setHrSearch}
-            onAddHR={(data) => {
+            onDeleteHR={handleDeleteHR}
+            onAddHR={async (data) => {
               const nextId = hrs.length
-                ? Math.max(...hrs.map((h) => h.id)) + 1
+                ? Math.max(...hrs.map((h) => (typeof h.id === 'number' ? h.id : 0))) + 1
                 : 1;
               const newHr = {
                 id: nextId,
@@ -2951,9 +3078,28 @@ export default function AdminDashboard() {
                 company: data.company || '',
                 technology: data.technology || '',
                 jobType: data.jobType || '',
-                addedBy: data.addedBy || '',
+                addedBy: data.addedBy || 'Admin',
               };
+              
+              // Update local state immediately
               setHrs((prev) => [...prev, newHr]);
+              
+              // Save to Firestore
+              try {
+                await addDoc(collection(db, 'hrs'), {
+                  name: newHr.name,
+                  email: newHr.email,
+                  mobile: newHr.mobile,
+                  company: newHr.company,
+                  technology: newHr.technology,
+                  jobType: newHr.jobType,
+                  addedBy: newHr.addedBy,
+                  createdAt: serverTimestamp(),
+                });
+                console.log('Saved HR to Firestore from Admin:', newHr);
+              } catch (err) {
+                console.error('Failed to save HR to Firestore:', err);
+              }
             }}
             onUpdateHR={(id, data) => {
               setHrs((prev) =>

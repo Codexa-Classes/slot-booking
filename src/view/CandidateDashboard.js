@@ -1,7 +1,14 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { CalendarIcon, CloudArrowDownIcon, ArrowLeftIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  serverTimestamp,
+} from 'firebase/firestore';
 import Navbar from '../Components/Navbar';
 import AddHRModal from '../Components/AddHRModal';
 import BookSlot from './BookSlot';
@@ -205,7 +212,15 @@ export default function CandidateDashboard() {
 
   // HR list shared state
   const [hrList, setHrList] = useState([
-    { id: 1, name: 'Poonam Digole', email: '', technology: 'React', mobile: '', jobType: 'onsite', company: 'Acme' },
+    {
+      id: 1,
+      name: 'Poonam Digole',
+      email: '',
+      technology: 'React',
+      mobile: '',
+      jobType: 'onsite',
+      company: 'Acme',
+    },
   ]);
 
   useEffect(() => {
@@ -244,8 +259,44 @@ export default function CandidateDashboard() {
     loadUserName();
   }, []);
 
-  const handleAddHR = (hr) => {
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Auto-hide success/error messages after 3 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => setSuccessMessage(''), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  useEffect(() => {
+    if (errorMessage) {
+      const timer = setTimeout(() => setErrorMessage(''), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [errorMessage]);
+
+  const handleAddHR = async (hr) => {
+    // 1) Update local UI list so user sees HR immediately
     setHrList((prev) => [...prev, hr]);
+
+    // 2) Save HR to Firestore so it appears in Firebase Console
+    try {
+      await addDoc(collection(db, 'hrs'), {
+        ...hr,
+        createdAt: serverTimestamp(),
+      });
+      // eslint-disable-next-line no-console
+      console.log('Saved HR to Firestore:', hr);
+      setSuccessMessage(`HR "${hr.name}" successfully added!`);
+      setErrorMessage('');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to save HR to Firestore:', err);
+      setErrorMessage('Failed to save HR. Please try again.');
+      setSuccessMessage('');
+    }
   };
 
   const handleNavClick = (navId) => {
@@ -274,6 +325,20 @@ export default function CandidateDashboard() {
         onNavChange={handleNavClick}
         activeNav={activeNav}
       />
+      {/* Success/Error Messages */}
+      {successMessage && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-300 animate-pulse">
+          <span className="text-lg">✓</span>
+          <span className="font-semibold">{successMessage}</span>
+        </div>
+      )}
+      {errorMessage && (
+        <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-50 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all duration-300 animate-pulse">
+          <span className="text-lg">✕</span>
+          <span className="font-semibold">{errorMessage}</span>
+        </div>
+      )}
+
       <main className="p-2 sm:p-4 md:p-8">
         {showBookSlot ? (
           <BookSlot onClose={() => setShowBookSlot(false)} onOpenAddHR={() => setShowAddHR(true)} hrList={hrList} />
