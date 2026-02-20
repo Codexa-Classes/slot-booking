@@ -9,6 +9,13 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import {
+  getAllSlots,
+  getSlotsByStatus,
+  updateSlotStatus,
+  deleteSlot,
+  getSlotStatistics,
+} from '../firebase/slotsService';
+import {
   CalendarIcon,
   HomeIcon,
   UsersIcon,
@@ -190,7 +197,6 @@ const MOCK_CANDIDATES = [
     totalScheduled: '4',
     lastInterview: 'Recent',
     payment: '₹0',
-    regime: 'new-70',
     status: 'Active',
     selected: true,
     referredBy: 'Nilesh Sir',
@@ -204,7 +210,6 @@ const MOCK_CANDIDATES = [
     totalScheduled: '0',
     lastInterview: '-',
     payment: '₹0',
-    regime: '-',
     status: 'Active',
     selected: false,
     referredBy: 'Anil Shinde Sir',
@@ -218,7 +223,6 @@ const MOCK_CANDIDATES = [
     totalScheduled: '0',
     lastInterview: '-',
     payment: '₹0',
-    regime: '-',
     status: 'Active',
     selected: false,
     referredBy: 'Vishal Sir',
@@ -232,7 +236,6 @@ const MOCK_CANDIDATES = [
     totalScheduled: '1',
     lastInterview: 'Recent',
     payment: '₹0',
-    regime: 'new-70',
     status: 'Active',
     selected: false,
     referredBy: 'Viraj Kadam Sir',
@@ -486,37 +489,34 @@ function AdminCandidatesTable({
         <table className="min-w-full border-collapse text-xs sm:text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-600">
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200 w-10">
                 Sr. No
               </th>
               <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Name
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Mobile
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Experience
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Technologies
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Total Scheduled
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Last Interview
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Payment
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Regime Type
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Status
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                 Actions
               </th>
             </tr>
@@ -524,12 +524,12 @@ function AdminCandidatesTable({
           <tbody>
             {candidates.map((c) => (
               <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-3 py-2 text-slate-700">{c.id}</td>
+                <td className="px-3 py-2 text-slate-700 text-center">{c.id}</td>
                 <td className="px-3 py-2 text-slate-800">{c.name}</td>
-                <td className="px-3 py-2 text-slate-700">{c.mobile}</td>
-                <td className="px-3 py-2 text-slate-700">{c.experience}</td>
-                <td className="px-3 py-2">
-                  <div className="flex flex-wrap gap-1">
+                <td className="px-3 py-2 text-slate-700 text-center">{c.mobile}</td>
+                <td className="px-3 py-2 text-slate-700 text-center">{c.experience}</td>
+                <td className="px-3 py-2 text-center">
+                  <div className="inline-flex flex-wrap gap-1 justify-center">
                     {c.technologies.map((t) => (
                       <span
                         key={t}
@@ -540,11 +540,10 @@ function AdminCandidatesTable({
                     ))}
                   </div>
                 </td>
-                <td className="px-3 py-2 text-slate-700">{c.totalScheduled}</td>
-                <td className="px-3 py-2 text-slate-700">{c.lastInterview}</td>
-                <td className="px-3 py-2 text-slate-700">{c.payment}</td>
-                <td className="px-3 py-2 text-slate-700">{c.regime}</td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 text-slate-700 text-center">{c.totalScheduled}</td>
+                <td className="px-3 py-2 text-slate-700 text-center">{c.lastInterview}</td>
+                <td className="px-3 py-2 text-slate-700 text-center">{c.payment}</td>
+                <td className="px-3 py-2 text-center">
                   <button
                     onClick={() => onToggleStatus(c.id)}
                     className={`inline-flex rounded-full px-3 py-0.5 text-[11px] font-semibold ${
@@ -556,8 +555,8 @@ function AdminCandidatesTable({
                     {c.status}
                   </button>
                 </td>
-                <td className="px-3 py-2">
-                  <div className="flex gap-1">
+                <td className="px-3 py-2 text-center">
+                  <div className="inline-flex gap-1">
                     <button
                       onClick={() => onViewCandidate(c.id)}
                       className="h-7 w-7 rounded bg-sky-500 text-white text-xs font-semibold hover:bg-sky-600 flex items-center justify-center"
@@ -1335,7 +1334,11 @@ function AdminSlotsTable({
   onBackToHome,
   onApproveSlot,
   onRejectSlot,
+  onDeleteSlot,
   onOpenCandidateSlots,
+  loading = false,
+  error = null,
+  stats = null,
 }) {
   const totalSlots = slots.length;
 
@@ -1364,37 +1367,44 @@ function AdminSlotsTable({
         <div className="w-32 sm:w-40" />
       </div>
 
+      {/* Error message */}
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       {/* Metrics + Filters (same alignment row like screenshot) */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Left: metrics - stacked number + label like screenshot */}
         <div className="flex flex-wrap gap-6 text-xs sm:text-sm text-slate-700">
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {totalSlots}
+              {stats?.total ?? totalSlots}
             </span>
             <span className="text-[11px] text-slate-500">Total Slots</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              17
+              {stats?.lastWeek ?? 0}
             </span>
             <span className="text-[11px] text-slate-500">Last Week</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              14
+              {stats?.thisWeek ?? 0}
             </span>
             <span className="text-[11px] text-slate-500">This Week</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              16.5
+              {stats?.avgPerWeek ?? 0}
             </span>
             <span className="text-[11px] text-slate-500">Avg/Week</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              2.4
+              {stats?.avgPerDay ?? 0}
             </span>
             <span className="text-[11px] text-slate-500">Avg/Day</span>
           </div>
@@ -1438,149 +1448,165 @@ function AdminSlotsTable({
       </div>
 
       {/* Slots table */}
-      <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-xs sm:text-sm">
-          <thead>
-            <tr className="bg-slate-50 text-slate-600">
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
-                Sr No.
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Name
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Company
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Technology
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Round
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Created At
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Date
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Time
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Status
-              </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {slots.map((slot, index) => {
-              const isPending = slot.status === 'Pending';
-              const isApproved = slot.status === 'Approved';
-              const isRejected = slot.status === 'Rejected';
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
+            <p className="text-sm text-gray-600">Loading slots...</p>
+          </div>
+        </div>
+      ) : slots.length === 0 ? (
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-gray-500">No slots found</p>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse text-xs sm:text-sm">
+            <thead>
+              <tr className="bg-slate-50 text-slate-600">
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
+                  Sr No.
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Name
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Company
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Technology
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Round
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Created At
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Date
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Time
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Status
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {slots.map((slot, index) => {
+                const isPending = slot.status === 'Pending';
+                const isApproved = slot.status === 'Approved';
+                const isRejected = slot.status === 'Rejected';
 
-              const statusIconClass = isApproved
-                ? 'fa-circle-check text-emerald-500'
-                : isRejected
-                ? 'fa-circle-xmark text-red-500'
-                : 'fa-clock text-amber-500';
+                const statusIconClass = isApproved
+                  ? 'fa-circle-check text-emerald-500'
+                  : isRejected
+                  ? 'fa-circle-xmark text-red-500'
+                  : 'fa-clock text-amber-500';
 
-              const statusTextClass = isApproved
-                ? 'text-emerald-600'
-                : isRejected
-                ? 'text-red-600'
-                : 'text-slate-800';
-              return (
-                <tr
-                  key={slot.id}
-                  className="border-b border-slate-100 hover:bg-slate-50"
-                >
-                  <td className="px-3 py-2 text-slate-700">{index + 1}</td>
-                  <td
-                    className="px-3 py-2 text-purple-600 font-semibold cursor-pointer"
-                    onClick={() =>
-                      onOpenCandidateSlots && onOpenCandidateSlots(slot.name)
-                    }
+                const statusTextClass = isApproved
+                  ? 'text-emerald-600'
+                  : isRejected
+                  ? 'text-red-600'
+                  : 'text-slate-800';
+                
+                const slotId = slot.firestoreId || slot.id;
+                return (
+                  <tr
+                    key={slotId}
+                    className="border-b border-slate-100 hover:bg-slate-50"
                   >
-                    {slot.name}
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">{slot.company}</td>
-                  <td className="px-3 py-2 text-slate-700">
-                    {slot.technology}
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">{slot.round}</td>
-                  <td className="px-3 py-2 text-slate-700">
-                    {slot.createdAt}
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">
-                    {slot.dateLabel}
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">
-                    {slot.timeLabel}
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-col">
-                      <div className="inline-flex items-center gap-2">
-                        <i
-                          className={`fa-solid ${statusIconClass}`}
-                          aria-hidden="true"
-                        />
-                        <span className={`font-semibold ${statusTextClass}`}>
-                          {slot.status}
-                        </span>
+                    <td className="px-3 py-2 text-slate-700">{index + 1}</td>
+                    <td
+                      className="px-3 py-2 text-purple-600 font-semibold cursor-pointer"
+                      onClick={() =>
+                        onOpenCandidateSlots && onOpenCandidateSlots(slot.candidateName || slot.name)
+                      }
+                    >
+                      {slot.candidateName || slot.name}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">{slot.company}</td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {slot.technology}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">{slot.round}</td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {slot.createdAtLabel || slot.createdAt}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {slot.dateLabel}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {slot.timeLabel}
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex flex-col">
+                        <div className="inline-flex items-center gap-2">
+                          <i
+                            className={`fa-solid ${statusIconClass}`}
+                            aria-hidden="true"
+                          />
+                          <span className={`font-semibold ${statusTextClass}`}>
+                            {slot.status}
+                          </span>
+                        </div>
+                        {isApproved && (
+                          <span className="mt-0.5 text-[11px] text-emerald-600">
+                            by Admin
+                          </span>
+                        )}
                       </div>
-                      {isApproved && (
-                        <span className="mt-0.5 text-[11px] text-emerald-600">
-                          by Admin
-                        </span>
+                    </td>
+                    <td className="px-3 py-2">
+                      {isPending ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => onApproveSlot(slotId)}
+                            className="inline-flex items-center gap-2 rounded bg-emerald-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-emerald-600"
+                          >
+                            <i className="fa-solid fa-check" aria-hidden="true" />
+                            Approve
+                          </button>
+                          <button
+                            onClick={() => onRejectSlot(slotId)}
+                            className="inline-flex items-center gap-2 rounded bg-red-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-red-600"
+                          >
+                            <i className="fa-solid fa-xmark" aria-hidden="true" />
+                            Reject
+                          </button>
+                          <button
+                            type="button"
+                            className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                            onClick={() => onDeleteSlot && onDeleteSlot(slotId)}
+                            aria-label="Delete"
+                          >
+                            <i className="fa-solid fa-trash" aria-hidden="true" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex justify-center">
+                          <button
+                            type="button"
+                            className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                            onClick={() => onDeleteSlot && onDeleteSlot(slotId)}
+                            aria-label="Delete"
+                          >
+                            <i className="fa-solid fa-trash" aria-hidden="true" />
+                          </button>
+                        </div>
                       )}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2">
-                    {isPending ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => onApproveSlot(slot.id)}
-                          className="inline-flex items-center gap-2 rounded bg-emerald-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-emerald-600"
-                        >
-                          <i className="fa-solid fa-check" aria-hidden="true" />
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => onRejectSlot(slot.id)}
-                          className="inline-flex items-center gap-2 rounded bg-red-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-red-600"
-                        >
-                          <i className="fa-solid fa-xmark" aria-hidden="true" />
-                          Reject
-                        </button>
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
-                          onClick={() => onRejectSlot(slot.id)}
-                          aria-label="Delete"
-                        >
-                          <i className="fa-solid fa-trash" aria-hidden="true" />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex justify-center">
-                        <button
-                          type="button"
-                          className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
-                          aria-label="Delete"
-                        >
-                          <i className="fa-solid fa-trash" aria-hidden="true" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -2147,7 +2173,6 @@ function AdminHRsTable({
 function AdminCandidateSlotsView({ data, onBack }) {
   const { name, candidate, slots } = data;
 
-  const regime = candidate?.regime || 'new-70';
   const payment = candidate?.payment || '₹0';
   const experience =
     candidate?.experience && candidate.experience !== '-'
@@ -2178,34 +2203,6 @@ function AdminCandidateSlotsView({ data, onBack }) {
         <div className="text-[11px] sm:text-xs text-slate-600 whitespace-nowrap">
           Referred By:{' '}
           <span className="font-semibold text-slate-800">{referredBy}</span>
-        </div>
-      </div>
-
-      {/* Candidate summary bar */}
-      <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-4 text-center text-[11px] sm:text-xs text-slate-600">
-        <div className="flex flex-col items-center">
-          <span className="text-sm sm:text-base font-semibold text-slate-800">
-            {regime}
-          </span>
-          <span>Regime Type</span>
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-sm sm:text-base font-semibold text-slate-800">
-            {payment}
-          </span>
-          <span>Payment</span>
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-sm sm:text-base font-semibold text-slate-800">
-            {experience}
-          </span>
-          <span>Experience</span>
-        </div>
-        <div className="flex flex-col items-center">
-          <span className="text-sm sm:text-base font-semibold text-slate-800">
-            {totalCount}
-          </span>
-          <span>Total Interview Count</span>
         </div>
       </div>
 
@@ -2607,7 +2604,6 @@ export default function AdminDashboard() {
               totalScheduled: '0',
               lastInterview: '-',
               payment: data.payment || '₹0',
-              regime: '-',
               status: 'Active',
               selected: false,
             });
@@ -2626,12 +2622,46 @@ export default function AdminDashboard() {
 
   const [slotFilter, setSlotFilter] = useState('all');
   const [slotSearch, setSlotSearch] = useState('');
-  const [slots, setSlots] = useState(MOCK_SLOTS);
+  const [slots, setSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(true);
+  const [slotsError, setSlotsError] = useState(null);
+  const [slotStats, setSlotStats] = useState({
+    total: 0,
+    lastWeek: 0,
+    thisWeek: 0,
+    avgPerWeek: 0,
+    avgPerDay: 0,
+  });
   const [selectedSlotsCandidate, setSelectedSlotsCandidate] = useState(null);
   const [selectedViewCandidate, setSelectedViewCandidate] = useState(null);
   const [editingCandidate, setEditingCandidate] = useState(null);
   const [hrs, setHrs] = useState(MOCK_HRS);
   const [hrSearch, setHrSearch] = useState('');
+
+  // Load slots from Firebase
+  useEffect(() => {
+    const loadSlots = async () => {
+      setSlotsLoading(true);
+      setSlotsError(null);
+      try {
+        const allSlots = await getAllSlots();
+        setSlots(allSlots);
+        
+        // Load statistics
+        const stats = await getSlotStatistics();
+        setSlotStats(stats);
+      } catch (err) {
+        console.error('Error loading slots:', err);
+        setSlotsError('Failed to load slots. Please try again.');
+        setSlots([]);
+      } finally {
+        setSlotsLoading(false);
+      }
+    };
+
+    loadSlots();
+  }, []);
+
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
       if (slotFilter === 'pending' && slot.status !== 'Pending') return false;
@@ -2639,10 +2669,9 @@ export default function AdminDashboard() {
       if (slotFilter === 'rejected' && slot.status !== 'Rejected') return false;
       if (slotSearch.trim()) {
         const q = slotSearch.toLowerCase();
-        if (
-          !slot.name.toLowerCase().includes(q) &&
-          !slot.company.toLowerCase().includes(q)
-        ) {
+        const candidateName = (slot.candidateName || '').toLowerCase();
+        const company = (slot.company || '').toLowerCase();
+        if (!candidateName.includes(q) && !company.includes(q)) {
           return false;
         }
       }
@@ -2709,7 +2738,7 @@ export default function AdminDashboard() {
   const handleViewCandidate = (id) => {
     const candidate = candidates.find((c) => c.id === id);
     if (candidate) {
-      const candidateSlots = slots.filter((s) => s.name === candidate.name);
+      const candidateSlots = slots.filter((s) => s.candidateName === candidate.name);
       setSelectedViewCandidate({
         name: candidate.name,
         candidate,
@@ -2725,20 +2754,58 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleApproveSlot = (id) => {
-    setSlots((prev) =>
-      prev.map((slot) =>
-        slot.id === id ? { ...slot, status: 'Approved' } : slot,
-      ),
-    );
+  const handleApproveSlot = async (slotId) => {
+    try {
+      const updatedSlot = await updateSlotStatus(slotId, 'Approved');
+      setSlots((prev) =>
+        prev.map((slot) =>
+          slot.firestoreId === slotId ? updatedSlot : slot,
+        ),
+      );
+      
+      // Refresh statistics
+      const stats = await getSlotStatistics();
+      setSlotStats(stats);
+    } catch (error) {
+      console.error('Error approving slot:', error);
+      alert('Failed to approve slot. Please try again.');
+    }
   };
 
-  const handleRejectSlot = (id) => {
-    setSlots((prev) =>
-      prev.map((slot) =>
-        slot.id === id ? { ...slot, status: 'Rejected' } : slot,
-      ),
-    );
+  const handleRejectSlot = async (slotId) => {
+    try {
+      const updatedSlot = await updateSlotStatus(slotId, 'Rejected');
+      setSlots((prev) =>
+        prev.map((slot) =>
+          slot.firestoreId === slotId ? updatedSlot : slot,
+        ),
+      );
+      
+      // Refresh statistics
+      const stats = await getSlotStatistics();
+      setSlotStats(stats);
+    } catch (error) {
+      console.error('Error rejecting slot:', error);
+      alert('Failed to reject slot. Please try again.');
+    }
+  };
+
+  const handleDeleteSlot = async (slotId) => {
+    if (!window.confirm('Are you sure you want to delete this slot?')) {
+      return;
+    }
+
+    try {
+      await deleteSlot(slotId);
+      setSlots((prev) => prev.filter((slot) => slot.firestoreId !== slotId));
+      
+      // Refresh statistics
+      const stats = await getSlotStatistics();
+      setSlotStats(stats);
+    } catch (error) {
+      console.error('Error deleting slot:', error);
+      alert('Failed to delete slot. Please try again.');
+    }
   };
 
   return (
@@ -2767,7 +2834,6 @@ export default function AdminDashboard() {
                   totalScheduled: '0',
                   lastInterview: '-',
                   payment: data.payment || '₹0',
-                  regime: '-',
                   status: 'Active',
                   selected: false,
                 };
@@ -2847,12 +2913,16 @@ export default function AdminDashboard() {
               onBackToHome={() => setActiveTab('home')}
               onApproveSlot={handleApproveSlot}
               onRejectSlot={handleRejectSlot}
+              onDeleteSlot={handleDeleteSlot}
+              loading={slotsLoading}
+              error={slotsError}
+              stats={slotStats}
               onOpenCandidateSlots={(candidateName) => {
                 const candidate = candidates.find(
                   (c) => c.name === candidateName,
                 );
                 const candidateSlots = slots.filter(
-                  (s) => s.name === candidateName,
+                  (s) => (s.candidateName || s.name) === candidateName,
                 );
                 setSelectedSlotsCandidate({
                   name: candidateName,

@@ -1,7 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { CalendarIcon } from '@heroicons/react/24/solid';
+import { createSlot } from '../firebase/slotsService';
+import { useAuth } from '../context/AuthContext';
 
 export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
+  const { currentUser } = useAuth();
   const [form, setForm] = useState({
     date: '',
     hour: '',
@@ -13,6 +16,8 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
   const dateRef = useRef(null);
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -81,12 +86,56 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
     alert('Availability checked for ' + form.date + ' at ' + (form.hour && form.minute ? `${form.hour}:${form.minute}` : ''));
   };
 
-  const bookSlot = () => {
+  const bookSlot = async () => {
     const ok = validate(['date', 'hour', 'minute', 'duration', 'round', 'hr']);
     if (!ok) return;
-    // eslint-disable-next-line no-alert
-    alert('Booking slot: ' + JSON.stringify(form));
-    if (onClose) onClose();
+
+    setLoading(true);
+    setSubmitError('');
+
+    try {
+      // Get user info from localStorage (sb_user)
+      const raw = localStorage.getItem('sb_user');
+      const userInfo = raw ? JSON.parse(raw) : null;
+      const candidateName = userInfo?.name || currentUser?.displayName || 'Unknown';
+      const candidateId = currentUser?.uid || userInfo?.mobile || '';
+
+      // Get HR info
+      const selectedHR = hrList.find((h) => String(h.id) === String(form.hr));
+      if (!selectedHR) {
+        setSubmitError('Please select an HR');
+        setLoading(false);
+        return;
+      }
+
+      // Create slot data
+      const slotData = {
+        candidateId,
+        candidateName,
+        hrId: selectedHR.id || '',
+        hrName: selectedHR.name || '',
+        company: selectedHR.company || '',
+        technology: selectedHR.technology || '',
+        round: form.round,
+        date: form.date, // Will be converted to Timestamp in createSlot
+        startHour: form.hour,
+        startMinute: form.minute,
+        duration: form.duration,
+      };
+
+      await createSlot(slotData);
+      
+      // Success - close modal
+      if (onClose) onClose();
+      
+      // Show success message
+      alert('Slot booked successfully!');
+    } catch (error) {
+      console.error('Error booking slot:', error);
+      setSubmitError(error.message || 'Failed to book slot. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   function isTimeInRange(hour, minute, min = '11:00', max = '19:00') {
@@ -135,6 +184,13 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
             </button>
             <h2 className="mx-auto text-purple-600 font-semibold text-sm md:text-base">Book Slot</h2>
           </div>
+
+          {/* Error message */}
+          {submitError && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+              {submitError}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* COLUMN 1 (Left) */}
@@ -368,9 +424,17 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                 <button
                   type="button"
                   onClick={bookSlot}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9 md:w-36 justify-center"
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-300 disabled:cursor-not-allowed text-white font-semibold h-9 md:w-36 justify-center"
                 >
-                  Book My Slot
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Booking...
+                    </>
+                  ) : (
+                    'Book My Slot'
+                  )}
                 </button>
               </div>
             </div>
