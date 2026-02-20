@@ -1,11 +1,5 @@
 import React, { useMemo } from 'react';
-import {
-  FIXED_TODAY,
-  getWeekDays,
-  isSameDay,
-  parseISOToDate,
-  formatDayHeader,
-} from '../calendar';
+import { getWeekDays, parseISOToDate, formatDayHeader } from '../calendar';
 
 // Time slots from 11:00 AM to 7:00 PM (inclusive)
 const HOURS = [11, 12, 13, 14, 15, 16, 17, 18, 19];
@@ -18,7 +12,8 @@ function hourLabel(hour24) {
 }
 
 function SlotCalendar({ today: todayProp, weekStart, events }) {
-  const today = todayProp ?? FIXED_TODAY;
+  const today = todayProp ?? new Date();
+  const todayString = today.toDateString();
   const days = useMemo(() => getWeekDays(weekStart, 6), [weekStart]);
 
   const eventsByDay = useMemo(() => {
@@ -29,13 +24,18 @@ function SlotCalendar({ today: todayProp, weekStart, events }) {
           const end = parseISOToDate(event.end);
           return { ...event, __startDate: start, __endDate: end };
         })
-        .filter((event) => isSameDay(event.__startDate, day));
+        .filter(
+          (event) =>
+            event.__startDate.toDateString() === day.toDateString(),
+        );
 
       return dayEvents;
     });
   }, [events, days]);
 
-  const todayIndex = days.findIndex((d) => isSameDay(d, today));
+  const todayIndex = days.findIndex(
+    (d) => d.toDateString() === todayString,
+  );
   const totalHours = HOURS.length;
   const currentHour = today.getHours();
   const todayIndicatorOffset =

@@ -4,12 +4,12 @@ import './index.css';
 import Header from './Components/Header';
 import CalendarToolbar from './Components/CalendarToolbar';
 import SlotCalendar from './Components/SlotCalendar';
-import Login from './view/Login';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import { AuthProvider } from './context/AuthContext';
 import CandidateDashboard from './view/CandidateDashboard';
 import AdminDashboard from './view/AdminDashboard';
-import { isAdminAuthed } from './view/AdminLogin';
 import {
-  FIXED_TODAY,
   getWeekStart,
   formatWeekRangeLabel,
   getWeekDays,
@@ -17,29 +17,32 @@ import {
   isSameDay,
 } from './calendar';
 
-// Static mock events (slots)
-const MOCK_EVENTS = [
-  {
-    title: 'Slot Booked',
-    start: '2026-02-03T11:00:00',
-    end: '2026-02-03T12:00:00',
-  },
-  {
-    title: 'Slot Booked',
-    start: '2026-02-04T15:00:00',
-    end: '2026-02-04T16:00:00',
-  },
-  {
-    title: 'Slot Booked',
-    start: '2026-02-06T13:00:00',
-    end: '2026-02-06T14:00:00',
-  },
-];
+// Placeholder events (no fixed dates; real data should come from backend)
+const MOCK_EVENTS = [];
 
 function App() {
-  const today = new Date();
-  const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
+  const [today, setToday] = useState(() => new Date());
+  const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
+
+  // On mount and when tab is visible: show current today's date immediately
+  React.useEffect(() => {
+    const syncToToday = () => {
+      const now = new Date();
+      setToday(now);
+      setWeekStart(getWeekStart(now));
+    };
+    syncToToday(); // run immediately on mount
+    const interval = setInterval(syncToToday, 5000);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') syncToToday();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
 
   const weekEnd = useMemo(() => {
     const days = getWeekDays(weekStart, 6);
@@ -141,25 +144,20 @@ function App() {
     </div>
   );
 
-  const AdminProtected = ({ children }) => {
-    return isAdminAuthed() ? children : <Navigate to="/login" replace />;
-  };
-
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<CandidateDashboard />} />
-        <Route
-          path="/admin"
-          element={
-            <AdminProtected>
-              <AdminDashboard />
-            </AdminProtected>
-          }
-        />
-        <Route path="/" element={<CalendarPage />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
+
+          <Route path="/" element={<CalendarPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
     </Router>
   );
 }

@@ -16,7 +16,52 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setForm((f) => ({ ...f, [name]: value }));
+    setForm((f) => {
+      const updated = { ...f, [name]: value };
+      // Auto-update AM/PM based on hour selection
+      if (name === 'hour' && value) {
+        const hourNum = parseInt(value, 10);
+        // AM/PM will be calculated dynamically in render
+      }
+      return updated;
+    });
+  };
+
+  // Calculate AM/PM based on selected hour
+  const getAmPm = () => {
+    if (!form.hour) return 'AM';
+    const hourNum = parseInt(form.hour, 10);
+    return hourNum >= 12 ? 'PM' : 'AM';
+  };
+
+  // Format date for shortcuts
+  const formatDateForInput = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleDateShortcut = (type) => {
+    const today = new Date();
+    let targetDate;
+
+    if (type === 'today') {
+      targetDate = today;
+    } else if (type === 'tomorrow') {
+      targetDate = new Date(today);
+      targetDate.setDate(today.getDate() + 1);
+    } else if (type === 'next2') {
+      targetDate = new Date(today);
+      targetDate.setDate(today.getDate() + 2);
+    } else if (type === 'next3') {
+      targetDate = new Date(today);
+      targetDate.setDate(today.getDate() + 3);
+    }
+
+    if (targetDate) {
+      setForm((f) => ({ ...f, date: formatDateForInput(targetDate) }));
+    }
   };
 
   // HR search state for searchable dropdown
@@ -98,7 +143,7 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
               <div>
                 <label className="block text-xs font-medium text-gray-600">* Date</label>
                 <div className="mt-1">
-                  {/* Desktop: input + icon inside same box */}
+                  {/* Desktop: input with native calendar icon */}
                   <div className="hidden sm:block relative w-full">
                     <input
                       ref={dateRef}
@@ -106,19 +151,10 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                       name="date"
                       value={form.date}
                       onChange={handleChange}
-                      className="w-full border border-gray-200 rounded-md pl-3 pr-10 py-2 text-sm h-9 placeholder-gray-400 appearance-none"
-                      style={{ WebkitAppearance: 'none', MozAppearance: 'textfield', appearance: 'none' }}
+                      className="w-full border border-gray-200 rounded-md pl-3 pr-3 py-2 text-sm h-9 placeholder-gray-400"
                     />
-                    <button
-                      type="button"
-                      aria-label="Open date picker"
-                      onClick={() => dateRef.current && dateRef.current.focus()}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    >
-                      <CalendarIcon className="w-4 h-4" />
-                    </button>
                   </div>
-                  {/* Mobile: tap-to-open with icon inside */}
+                  {/* Mobile: tap-to-open with icon */}
                   <div className="sm:hidden relative w-full">
                     <button
                       type="button"
@@ -132,12 +168,36 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                     </span>
                   </div>
                 </div>
-                {/* Quick date links */}
+                {/* Quick date links - now clickable */}
                 <div className="mt-2 text-xs text-purple-600 flex gap-3">
-                  <button type="button" className="text-purple-600">Today</button>
-                  <button type="button" className="text-purple-600">Tomorrow</button>
-                  <button type="button" className="text-purple-600">Feb 11</button>
-                  <button type="button" className="text-purple-600">Feb 12</button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleDateShortcut('today')}
+                    className="text-purple-600 hover:text-purple-800 cursor-pointer"
+                  >
+                    Today
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => handleDateShortcut('tomorrow')}
+                    className="text-purple-600 hover:text-purple-800 cursor-pointer"
+                  >
+                    Tomorrow
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDateShortcut('next2')}
+                    className="text-purple-600 hover:text-purple-800 cursor-pointer"
+                  >
+                    In 2 days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDateShortcut('next3')}
+                    className="text-purple-600 hover:text-purple-800 cursor-pointer"
+                  >
+                    In 3 days
+                  </button>
                 </div>
               </div>
 
@@ -195,9 +255,9 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                     <option value="45">45</option>
                   </select>
 
-                  {/* AM indicator box (visual) */}
+                  {/* AM/PM indicator box (dynamic) */}
                   <div className="w-12 h-9 border border-gray-200 rounded-md flex items-center justify-center text-sm text-gray-500 bg-gray-50">
-                    AM
+                    {getAmPm()}
                   </div>
                 </div>
                 {errors.time && <p className="text-xs text-red-500 mt-1">{errors.time}</p>}
@@ -287,8 +347,10 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                     <option value="">Select Duration</option>
                     <option value="15">15 Minutes</option>
                     <option value="30">30 Minutes</option>
-                    <option value="45">45 Minutes</option>
-                    <option value="60">60 Minutes</option>
+                    <option value="60">1 Hour</option>
+                    <option value="120">2 Hours</option>
+                    <option value="180">3 Hours</option>
+                    <option value="240">4 Hours</option>
                   </select>
                   {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
                 </div>

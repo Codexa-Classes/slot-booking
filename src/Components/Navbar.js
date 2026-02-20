@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HomeIcon, CalendarIcon, UsersIcon, Bars3Icon, XMarkIcon } from '@heroicons/react/24/solid';
 
 
 // Navigation Bar Component
-export default function Navbar({ onOpenAddHR }) {
-  const [active, setActive] = useState('home');
+export default function Navbar({ onOpenAddHR, onNavChange, activeNav: activeNavProp }) {
+  const [active, setActive] = useState(activeNavProp || 'home');
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
@@ -13,9 +13,19 @@ export default function Navbar({ onOpenAddHR }) {
     { id: 'hrs', label: 'HRs', icon: UsersIcon },
   ];
 
+  // Sync internal state with prop
+  useEffect(() => {
+    if (activeNavProp !== undefined) {
+      setActive(activeNavProp);
+    }
+  }, [activeNavProp]);
+
   const handleNavClick = (id) => {
     setActive(id);
     setMobileOpen(false);
+    if (typeof onNavChange === 'function') {
+      onNavChange(id);
+    }
   };
 
   return (
@@ -28,9 +38,7 @@ export default function Navbar({ onOpenAddHR }) {
             <button
               key={item.id}
               onClick={() => {
-                // eslint-disable-next-line no-console
-                console.log('Navbar: clicked', item.id);
-                setActive(item.id);
+                handleNavClick(item.id);
                 if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
                   onOpenAddHR();
                 }
@@ -73,13 +81,8 @@ export default function Navbar({ onOpenAddHR }) {
                 <button
                   key={item.id}
                   onClick={() => {
-                    // debug: log which mobile nav item was clicked
-                    // eslint-disable-next-line no-console
-                    console.log('Navbar (mobile): clicked', item.id);
                     handleNavClick(item.id);
                     if (item.id === 'hrs' && typeof onOpenAddHR === 'function') {
-                      // eslint-disable-next-line no-console
-                      console.log('Navbar (mobile): opening Add HR modal');
                       onOpenAddHR();
                     }
                   }}

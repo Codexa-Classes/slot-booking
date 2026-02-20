@@ -1,5 +1,13 @@
-import React, { useMemo, useState, useRef } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  where,
+} from 'firebase/firestore';
+import { db } from '../firebase/firebase';
 import {
   CalendarIcon,
   HomeIcon,
@@ -9,17 +17,7 @@ import {
   ArrowLeftIcon,
   MagnifyingGlassIcon,
 } from '@heroicons/react/24/solid';
-import SlotCalendar from '../Components/SlotCalendar';
-import CalendarToolbar from '../Components/CalendarToolbar';
-import { adminLogout } from './AdminLogin';
-import {
-  FIXED_TODAY,
-  getWeekStart,
-  getWeekDays,
-  formatWeekRangeLabel,
-  parseISOToDate,
-  isSameDay,
-} from '../calendar';
+import WeekCalendar from '../Components/WeekCalendar';
 
 // Header copied from CandidateDashboard, adjusted for Admin
 function AdminHeader() {
@@ -27,7 +25,7 @@ function AdminHeader() {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    adminLogout();
+    localStorage.removeItem('sb_user');
     setMenuOpen(false);
     navigate('/login');
   };
@@ -179,24 +177,8 @@ function AdminTopNav({ activeTab, onChange }) {
   );
 }
 
-// Static mock events for admin calendar
-const ADMIN_EVENTS = [
-  {
-    title: 'Slot Booked',
-    start: '2026-02-09T17:00:00',
-    end: '2026-02-09T18:00:00',
-  },
-  {
-    title: 'Slot Booked',
-    start: '2026-02-10T15:00:00',
-    end: '2026-02-10T16:00:00',
-  },
-  {
-    title: 'Slot Booked',
-    start: '2026-02-12T15:00:00',
-    end: '2026-02-12T16:00:00',
-  },
-];
+// Placeholder events for admin calendar (no fixed dates; real data should come from backend)
+const ADMIN_EVENTS = [];
 
 const MOCK_CANDIDATES = [
   {
@@ -206,7 +188,7 @@ const MOCK_CANDIDATES = [
     experience: '4',
     technologies: ['Python', 'React Developer', 'MEAN Stack'],
     totalScheduled: '4',
-    lastInterview: '10 Feb 2026',
+    lastInterview: 'Recent',
     payment: '₹0',
     regime: 'new-70',
     status: 'Active',
@@ -248,7 +230,7 @@ const MOCK_CANDIDATES = [
     experience: '',
     technologies: ['Python'],
     totalScheduled: '1',
-    lastInterview: '11 Feb 2026',
+    lastInterview: 'Recent',
     payment: '₹0',
     regime: 'new-70',
     status: 'Active',
@@ -264,8 +246,8 @@ const MOCK_SLOTS = [
     company: 'ChZillion.Com',
     technology: 'App Support',
     round: 'Round 1',
-    createdAt: '10 Feb 2026, 03:31 PM',
-    dateLabel: 'Wed, 11 Feb 2026 (Tomorrow)',
+    createdAt: 'Recently, 03:31 PM',
+    dateLabel: 'Upcoming (Tomorrow)',
     timeLabel: '05:45 PM – 06:15 PM (30 mins)',
     status: 'Pending',
   },
@@ -275,8 +257,8 @@ const MOCK_SLOTS = [
     company: 'Eclerex',
     technology: 'App Support',
     round: 'Round 1',
-    createdAt: '10 Feb 2026, 02:07 PM',
-    dateLabel: 'Wed, 11 Feb 2026 (Tomorrow)',
+    createdAt: 'Recently, 02:07 PM',
+    dateLabel: 'Upcoming (Tomorrow)',
     timeLabel: '05:00 PM – 05:30 PM (30 mins)',
     status: 'Pending',
   },
@@ -286,8 +268,8 @@ const MOCK_SLOTS = [
     company: 'Entrata Care',
     technology: 'PHP',
     round: 'Round 1',
-    createdAt: '10 Feb 2026, 02:29 PM',
-    dateLabel: 'Wed, 11 Feb 2026 (Tomorrow)',
+    createdAt: 'Recently, 02:29 PM',
+    dateLabel: 'Upcoming (Tomorrow)',
     timeLabel: '04:00 PM – 05:00 PM (1 Hour)',
     status: 'Approved',
   },
@@ -297,29 +279,29 @@ const MOCK_SLOTS = [
     company: 'KPIT',
     technology: 'Python',
     round: 'Round 1',
-    createdAt: '10 Feb 2026, 02:00 PM',
-    dateLabel: 'Wed, 11 Feb 2026',
+    createdAt: 'Recently, 02:00 PM',
+    dateLabel: 'Upcoming',
     timeLabel: '03:00 Pm - 03:45 Pm',
     status: 'Approved',
   },
 ];
 
-// Simple monthly stats for Statistics tab (demo data)
+// Simple monthly stats for Statistics tab (demo data, no fixed dates)
 const SIMPLE_MONTHLY_STATS = [
-  { label: 'Jan 2025', value: 1 },
-  { label: 'Feb 2025', value: 1 },
-  { label: 'Mar 2025', value: 18 },
-  { label: 'Apr 2025', value: 35 },
-  { label: 'May 2025', value: 47 },
-  { label: 'Jun 2025', value: 25 },
-  { label: 'Jul 2025', value: 20 },
-  { label: 'Aug 2025', value: 10 },
-  { label: 'Sep 2025', value: 17 },
-  { label: 'Oct 2025', value: 12 },
-  { label: 'Nov 2025', value: 2 },
-  { label: 'Dec 2025', value: 21 },
-  { label: 'Jan 2026', value: 24 },
-  { label: 'Feb 2026', value: 27 },
+  { label: 'M1', value: 1 },
+  { label: 'M2', value: 1 },
+  { label: 'M3', value: 18 },
+  { label: 'M4', value: 35 },
+  { label: 'M5', value: 47 },
+  { label: 'M6', value: 25 },
+  { label: 'M7', value: 20 },
+  { label: 'M8', value: 10 },
+  { label: 'M9', value: 17 },
+  { label: 'M10', value: 12 },
+  { label: 'M11', value: 2 },
+  { label: 'M12', value: 21 },
+  { label: 'M13', value: 24 },
+  { label: 'M14', value: 27 },
 ];
 
 const MOCK_HRS = [
@@ -617,6 +599,9 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
   });
   const [showPassword, setShowPassword] = useState(true);
   const [showTechDropdown, setShowTechDropdown] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const techOptions = [
     'PHP',
@@ -653,9 +638,67 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    onSubmit(form);
+    setError('');
+    setSuccessMessage('');
+
+    const trimmedMobile = form.mobile.trim();
+    const trimmedPassword = form.password.trim();
+
+    if (!trimmedMobile || !trimmedPassword) {
+      setError('Please enter mobile and password.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const candidateData = {
+        mobile: trimmedMobile,
+        password: trimmedPassword,
+        role: 'candidate',
+      };
+
+      if (form.name?.trim()) candidateData.name = form.name.trim();
+      if (form.experience?.trim()) candidateData.experience = form.experience.trim();
+      if (form.technology?.length > 0) candidateData.technology = form.technology;
+      if (form.payment?.trim()) candidateData.payment = form.payment.trim();
+      if (form.referredBy?.trim()) candidateData.referredBy = form.referredBy.trim();
+
+      await addDoc(collection(db, 'users'), candidateData);
+
+      setSuccessMessage('Candidate added successfully.');
+      
+      // Pass full form data to parent for local state update
+      if (typeof onSubmit === 'function') {
+        onSubmit({
+          name: form.name?.trim() || '',
+          mobile: trimmedMobile,
+          experience: form.experience?.trim() || '',
+          password: trimmedPassword,
+          technology: form.technology || [],
+          payment: form.payment?.trim() || '',
+          referredBy: form.referredBy?.trim() || '',
+        });
+      }
+      
+      setForm({
+        name: '',
+        mobile: '',
+        experience: '',
+        password: '9256',
+        technology: [],
+        payment: '',
+        referredBy: '',
+      });
+      setShowPassword(true);
+      setShowTechDropdown(false);
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || 'Failed to add candidate.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -686,6 +729,18 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         {/* Right: spacer to balance layout */}
         <div className="w-10 sm:w-16" />
       </div>
+
+      {successMessage && (
+        <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
+          {successMessage}
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
         {/* Candidate Name */}
@@ -843,8 +898,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
             value={form.payment}
             onChange={handleChange('payment')}
             placeholder="Enter payment amount"
-            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-s
-          "
+            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
           />
         </div>
 
@@ -870,9 +924,10 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
       <div className="mt-6 flex justify-end">
         <button
           type="submit"
-          className="inline-flex items-center justify-center rounded-full bg-purple-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-purple-600"
+          disabled={loading}
+          className="inline-flex items-center justify-center rounded-full bg-purple-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-purple-600 disabled:opacity-70"
         >
-          Add Candidate
+          {loading ? 'Adding…' : 'Add Candidate'}
         </button>
       </div>
     </form>
@@ -2463,7 +2518,7 @@ function AdminStatisticsChart() {
         Monthly Slot Statistics
       </h2>
       <p className="mt-1 text-[11px] sm:text-xs text-slate-500">
-        Showing statistics from Jan 2025 to Feb 2026
+        Showing recent statistics
       </p>
 
       <div className="mt-5 overflow-x-auto">
@@ -2513,6 +2568,62 @@ export default function AdminDashboard() {
   const [candidateFilter, setCandidateFilter] = useState('all');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [candidates, setCandidates] = useState(MOCK_CANDIDATES);
+
+  // Load candidates from Firestore on mount (and avoid duplicates by mobile)
+  useEffect(() => {
+    const loadCandidatesFromFirestore = async () => {
+      try {
+        const q = query(collection(db, 'users'), where('role', '==', 'candidate'));
+        const querySnapshot = await getDocs(q);
+        const docs = [];
+
+        querySnapshot.forEach((doc) => {
+          docs.push({ id: doc.id, ...doc.data() });
+        });
+
+        if (docs.length === 0) return;
+
+        setCandidates((prev) => {
+          const mobiles = new Set(prev.map((c) => c.mobile));
+          let maxId = prev.length > 0 ? Math.max(...prev.map((c) => c.id)) : 0;
+          const additions = [];
+
+          docs.forEach((data) => {
+            if (!data.mobile || mobiles.has(data.mobile)) {
+              return;
+            }
+            mobiles.add(data.mobile);
+            maxId += 1;
+            additions.push({
+              id: maxId,
+              name: data.name || 'New Candidate',
+              mobile: data.mobile || '',
+              experience: data.experience || '0',
+              technologies: Array.isArray(data.technology)
+                ? data.technology
+                : data.technology
+                ? [data.technology]
+                : [],
+              totalScheduled: '0',
+              lastInterview: '-',
+              payment: data.payment || '₹0',
+              regime: '-',
+              status: 'Active',
+              selected: false,
+            });
+          });
+
+          if (additions.length === 0) return prev;
+          return [...prev, ...additions];
+        });
+      } catch (err) {
+        console.error('Error loading candidates from Firestore:', err);
+      }
+    };
+
+    loadCandidatesFromFirestore();
+  }, []);
+
   const [slotFilter, setSlotFilter] = useState('all');
   const [slotSearch, setSlotSearch] = useState('');
   const [slots, setSlots] = useState(MOCK_SLOTS);
@@ -2521,33 +2632,6 @@ export default function AdminDashboard() {
   const [editingCandidate, setEditingCandidate] = useState(null);
   const [hrs, setHrs] = useState(MOCK_HRS);
   const [hrSearch, setHrSearch] = useState('');
-  const today = new Date();
-  const [weekStart, setWeekStart] = useState(() => getWeekStart(today));
-
-  const weekEnd = useMemo(() => {
-    const days = getWeekDays(weekStart, 6);
-    return days[days.length - 1];
-  }, [weekStart]);
-
-  const rangeLabel = useMemo(
-    () => formatWeekRangeLabel(weekStart, weekEnd),
-    [weekStart, weekEnd],
-  );
-
-  const todaysSlotsCount = useMemo(() => {
-    return ADMIN_EVENTS.filter((event) => {
-      const eventDate = parseISOToDate(event.start);
-      return isSameDay(eventDate, today);
-    }).length;
-  }, [today]);
-
-  const weekSlotsCount = useMemo(() => {
-    return ADMIN_EVENTS.filter((event) => {
-      const d = parseISOToDate(event.start);
-      return d >= weekStart && d <= weekEnd;
-    }).length;
-  }, [weekStart, weekEnd]);
-
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
       if (slotFilter === 'pending' && slot.status !== 'Pending') return false;
@@ -2607,16 +2691,6 @@ export default function AdminDashboard() {
       );
     });
   }, [hrs, hrSearch]);
-
-  const handleNextWeek = () => {
-    const next = new Date(weekStart);
-    next.setDate(next.getDate() + 7);
-    setWeekStart(next);
-  };
-
-  const handleToday = () => {
-    setWeekStart(getWeekStart(new Date()));
-  };
 
   const handleToggleStatus = (id) => {
     setCandidates((prev) =>
@@ -2873,21 +2947,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              {/* Same CalendarToolbar as home: forward + today, range, totals */}
-              <div className="mt-3">
-                <CalendarToolbar
-                  today={today}
-                  rangeLabel={rangeLabel}
-                  onNextWeek={handleNextWeek}
-                  onToday={handleToday}
-                  todaysSlotsCount={todaysSlotsCount}
-                  weeklySlotsCount={weekSlotsCount}
-                />
-              </div>
-            </div>
-
-            <div className="mt-4 flex justify-center">
-              <SlotCalendar today={today} weekStart={weekStart} events={ADMIN_EVENTS} />
+              <WeekCalendar />
             </div>
           </div>
         )}
