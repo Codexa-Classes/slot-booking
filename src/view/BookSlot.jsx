@@ -1,9 +1,12 @@
 import React, { useState, useRef } from 'react';
 import { CalendarIcon } from '@heroicons/react/24/solid';
-import { createSlot } from '../firebase/slotsService';
+import { useNavigate } from 'react-router-dom';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase/firebase';
 import { useAuth } from '../context/AuthContext';
 
 export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [form, setForm] = useState({
     date: '',
@@ -16,8 +19,6 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
   const dateRef = useRef(null);
   const [showMobileCalendar, setShowMobileCalendar] = useState(false);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [submitError, setSubmitError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -89,52 +90,58 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
   const bookSlot = async () => {
     const ok = validate(['date', 'hour', 'minute', 'duration', 'round', 'hr']);
     if (!ok) return;
+    // Determine candidate identity from auth or local session
+    let candidateId = currentUser?.uid || '';
+    let candidateName = 'Candidate';
+    try {
+      const raw = localStorage.getItem('sb_user');
+      const parsed = raw ? JSON.parse(raw) : null;
+      const mobile = String(parsed?.mobile || '').trim();
+      const name = (parsed?.name || '').trim();
+      if (!candidateId && mobile) {
+        // Use mobile as stable id when Firebase auth user is not present
+        candidateId = mobile;
+      }
+      if (name) candidateName = name;
+    } catch {
+      // ignore localStorage errors
+    }
 
-    setLoading(true);
-    setSubmitError('');
+    if (!candidateId) {
+      // eslint-disable-next-line no-alert
+      alert('Please log in again to book a slot.');
+      return;
+    }
+
+    const hr = selectedHR || {};
+    const companyName = hr.company || '';
+    const technology = hr.technology || '';
+    const hrName = hr.name || '';
+    const time =
+      form.hour && form.minute ? `${form.hour}:${form.minute}` : '';
+
+    const payload = {
+      candidateId,
+      candidateName,
+      companyName,
+      technology,
+      round: form.round,
+      date: form.date,
+      time,
+      duration: form.duration,
+      hrName,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    };
 
     try {
-      // Get user info from localStorage (sb_user)
-      const raw = localStorage.getItem('sb_user');
-      const userInfo = raw ? JSON.parse(raw) : null;
-      const candidateName = userInfo?.name || currentUser?.displayName || 'Unknown';
-      const candidateId = currentUser?.uid || userInfo?.mobile || '';
-
-      // Get HR info
-      const selectedHR = hrList.find((h) => String(h.id) === String(form.hr));
-      if (!selectedHR) {
-        setSubmitError('Please select an HR');
-        setLoading(false);
-        return;
-      }
-
-      // Create slot data
-      const slotData = {
-        candidateId,
-        candidateName,
-        hrId: selectedHR.id || '',
-        hrName: selectedHR.name || '',
-        company: selectedHR.company || '',
-        technology: selectedHR.technology || '',
-        round: form.round,
-        date: form.date, // Will be converted to Timestamp in createSlot
-        startHour: form.hour,
-        startMinute: form.minute,
-        duration: form.duration,
-      };
-
-      await createSlot(slotData);
-      
-      // Success - close modal
-      if (onClose) onClose();
-      
-      // Show success message
-      alert('Slot booked successfully!');
-    } catch (error) {
-      console.error('Error booking slot:', error);
-      setSubmitError(error.message || 'Failed to book slot. Please try again.');
-    } finally {
-      setLoading(false);
+      await addDoc(collection(db, 'slots'), payload);
+      navigate('/candidate-dashboard?view=slots');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to book slot:', err);
+      // eslint-disable-next-line no-alert
+      alert('Failed to book slot. Please try again.');
     }
   };
 
@@ -184,13 +191,6 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
             </button>
             <h2 className="mx-auto text-purple-600 font-semibold text-sm md:text-base">Book Slot</h2>
           </div>
-
-          {/* Error message */}
-          {submitError && (
-            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
-              {submitError}
-            </div>
-          )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* COLUMN 1 (Left) */}
@@ -424,17 +424,9 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                 <button
                   type="button"
                   onClick={bookSlot}
-                  disabled={loading}
-                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 disabled:bg-emerald-300 disabled:cursor-not-allowed text-white font-semibold h-9 md:w-36 justify-center"
+                  className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9 md:w-36 justify-center"
                 >
-                  {loading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Booking...
-                    </>
-                  ) : (
-                    'Book My Slot'
-                  )}
+                  Book My Slot
                 </button>
               </div>
             </div>

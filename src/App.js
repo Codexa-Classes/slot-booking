@@ -153,6 +153,7 @@ function App() {
 
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
           <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
+          <Route path="/candidate-event-list" element={<CandidateDashboard />} />
 
           <Route path="/" element={<CalendarPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

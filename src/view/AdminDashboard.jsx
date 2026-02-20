@@ -6,19 +6,11 @@ import {
   getDocs,
   query,
   where,
-  serverTimestamp,
   onSnapshot,
   doc,
-  deleteDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
-import {
-  getAllSlots,
-  getSlotsByStatus,
-  updateSlotStatus,
-  deleteSlot,
-  getSlotStatistics,
-} from '../firebase/slotsService';
 import {
   CalendarIcon,
   HomeIcon,
@@ -97,7 +89,7 @@ function AdminHeader() {
 }
 
 // Top navigation row like screenshot
-function AdminTopNav({ activeTab, onChange }) {
+function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
   const baseBtn =
     'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all';
 
@@ -182,7 +174,8 @@ function AdminTopNav({ activeTab, onChange }) {
       </button>
 
       <div className="ml-auto hidden sm:flex items-center text-[11px] font-semibold text-slate-600">
-        Pending Approvals:&nbsp;<span className="text-red-600">0</span>
+        Pending Approvals:&nbsp;
+        <span className="text-red-600">{pendingApprovals}</span>
       </div>
     </div>
   );
@@ -201,6 +194,7 @@ const MOCK_CANDIDATES = [
     totalScheduled: '4',
     lastInterview: 'Recent',
     payment: '₹0',
+    regime: 'new-70',
     status: 'Active',
     selected: true,
     referredBy: 'Nilesh Sir',
@@ -214,6 +208,7 @@ const MOCK_CANDIDATES = [
     totalScheduled: '0',
     lastInterview: '-',
     payment: '₹0',
+    regime: '-',
     status: 'Active',
     selected: false,
     referredBy: 'Anil Shinde Sir',
@@ -227,6 +222,7 @@ const MOCK_CANDIDATES = [
     totalScheduled: '0',
     lastInterview: '-',
     payment: '₹0',
+    regime: '-',
     status: 'Active',
     selected: false,
     referredBy: 'Vishal Sir',
@@ -240,6 +236,7 @@ const MOCK_CANDIDATES = [
     totalScheduled: '1',
     lastInterview: 'Recent',
     payment: '₹0',
+    regime: 'new-70',
     status: 'Active',
     selected: false,
     referredBy: 'Viraj Kadam Sir',
@@ -493,34 +490,37 @@ function AdminCandidatesTable({
         <table className="min-w-full border-collapse text-xs sm:text-sm">
           <thead>
             <tr className="bg-slate-50 text-slate-600">
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200 w-10">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
                 Sr. No
               </th>
               <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Name
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Mobile
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Experience
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Technologies
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Total Scheduled
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Last Interview
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Payment
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Regime Type
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Status
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
                 Actions
               </th>
             </tr>
@@ -528,12 +528,12 @@ function AdminCandidatesTable({
           <tbody>
             {candidates.map((c) => (
               <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-3 py-2 text-slate-700 text-center">{c.id}</td>
+                <td className="px-3 py-2 text-slate-700">{c.id}</td>
                 <td className="px-3 py-2 text-slate-800">{c.name}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.mobile}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.experience}</td>
-                <td className="px-3 py-2 text-center">
-                  <div className="inline-flex flex-wrap gap-1 justify-center">
+                <td className="px-3 py-2 text-slate-700">{c.mobile}</td>
+                <td className="px-3 py-2 text-slate-700">{c.experience}</td>
+                <td className="px-3 py-2">
+                  <div className="flex flex-wrap gap-1">
                     {c.technologies.map((t) => (
                       <span
                         key={t}
@@ -544,10 +544,11 @@ function AdminCandidatesTable({
                     ))}
                   </div>
                 </td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.totalScheduled}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.lastInterview}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.payment}</td>
-                <td className="px-3 py-2 text-center">
+                <td className="px-3 py-2 text-slate-700">{c.totalScheduled}</td>
+                <td className="px-3 py-2 text-slate-700">{c.lastInterview}</td>
+                <td className="px-3 py-2 text-slate-700">{c.payment}</td>
+                <td className="px-3 py-2 text-slate-700">{c.regime}</td>
+                <td className="px-3 py-2">
                   <button
                     onClick={() => onToggleStatus(c.id)}
                     className={`inline-flex rounded-full px-3 py-0.5 text-[11px] font-semibold ${
@@ -559,8 +560,8 @@ function AdminCandidatesTable({
                     {c.status}
                   </button>
                 </td>
-                <td className="px-3 py-2 text-center">
-                  <div className="inline-flex gap-1">
+                <td className="px-3 py-2">
+                  <div className="flex gap-1">
                     <button
                       onClick={() => onViewCandidate(c.id)}
                       className="h-7 w-7 rounded bg-sky-500 text-white text-xs font-semibold hover:bg-sky-600 flex items-center justify-center"
@@ -1338,11 +1339,7 @@ function AdminSlotsTable({
   onBackToHome,
   onApproveSlot,
   onRejectSlot,
-  onDeleteSlot,
   onOpenCandidateSlots,
-  loading = false,
-  error = null,
-  stats = null,
 }) {
   const totalSlots = slots.length;
 
@@ -1371,44 +1368,37 @@ function AdminSlotsTable({
         <div className="w-32 sm:w-40" />
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
       {/* Metrics + Filters (same alignment row like screenshot) */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {/* Left: metrics - stacked number + label like screenshot */}
         <div className="flex flex-wrap gap-6 text-xs sm:text-sm text-slate-700">
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.total ?? totalSlots}
+              {totalSlots}
             </span>
             <span className="text-[11px] text-slate-500">Total Slots</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.lastWeek ?? 0}
+              17
             </span>
             <span className="text-[11px] text-slate-500">Last Week</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.thisWeek ?? 0}
+              14
             </span>
             <span className="text-[11px] text-slate-500">This Week</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.avgPerWeek ?? 0}
+              16.5
             </span>
             <span className="text-[11px] text-slate-500">Avg/Week</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.avgPerDay ?? 0}
+              2.4
             </span>
             <span className="text-[11px] text-slate-500">Avg/Day</span>
           </div>
@@ -1452,165 +1442,149 @@ function AdminSlotsTable({
       </div>
 
       {/* Slots table */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-10 h-10 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin" />
-            <p className="text-sm text-gray-600">Loading slots...</p>
-          </div>
-        </div>
-      ) : slots.length === 0 ? (
-        <div className="flex items-center justify-center py-12">
-          <p className="text-sm text-gray-500">No slots found</p>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-xs sm:text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-slate-600">
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
-                  Sr No.
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Name
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Company
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Technology
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Round
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Created At
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Date
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Time
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Status
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {slots.map((slot, index) => {
-                const isPending = slot.status === 'Pending';
-                const isApproved = slot.status === 'Approved';
-                const isRejected = slot.status === 'Rejected';
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse text-xs sm:text-sm">
+          <thead>
+            <tr className="bg-slate-50 text-slate-600">
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
+                Sr No.
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Name
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Company
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Technology
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Round
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Created At
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Date
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Time
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Status
+              </th>
+              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                Actions
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {slots.map((slot, index) => {
+              const isPending = slot.status === 'Pending';
+              const isApproved = slot.status === 'Approved';
+              const isRejected = slot.status === 'Rejected';
 
-                const statusIconClass = isApproved
-                  ? 'fa-circle-check text-emerald-500'
-                  : isRejected
-                  ? 'fa-circle-xmark text-red-500'
-                  : 'fa-clock text-amber-500';
+              const statusIconClass = isApproved
+                ? 'fa-circle-check text-emerald-500'
+                : isRejected
+                ? 'fa-circle-xmark text-red-500'
+                : 'fa-clock text-amber-500';
 
-                const statusTextClass = isApproved
-                  ? 'text-emerald-600'
-                  : isRejected
-                  ? 'text-red-600'
-                  : 'text-slate-800';
-                
-                const slotId = slot.firestoreId || slot.id;
-                return (
-                  <tr
-                    key={slotId}
-                    className="border-b border-slate-100 hover:bg-slate-50"
+              const statusTextClass = isApproved
+                ? 'text-emerald-600'
+                : isRejected
+                ? 'text-red-600'
+                : 'text-slate-800';
+              return (
+                <tr
+                  key={slot.id}
+                  className="border-b border-slate-100 hover:bg-slate-50"
+                >
+                  <td className="px-3 py-2 text-slate-700">{index + 1}</td>
+                  <td
+                    className="px-3 py-2 text-purple-600 font-semibold cursor-pointer"
+                    onClick={() =>
+                      onOpenCandidateSlots && onOpenCandidateSlots(slot.name)
+                    }
                   >
-                    <td className="px-3 py-2 text-slate-700">{index + 1}</td>
-                    <td
-                      className="px-3 py-2 text-purple-600 font-semibold cursor-pointer"
-                      onClick={() =>
-                        onOpenCandidateSlots && onOpenCandidateSlots(slot.candidateName || slot.name)
-                      }
-                    >
-                      {slot.candidateName || slot.name}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700">{slot.company}</td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.technology}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700">{slot.round}</td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.createdAtLabel || slot.createdAt}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.dateLabel}
-                    </td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.timeLabel}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-col">
-                        <div className="inline-flex items-center gap-2">
-                          <i
-                            className={`fa-solid ${statusIconClass}`}
-                            aria-hidden="true"
-                          />
-                          <span className={`font-semibold ${statusTextClass}`}>
-                            {slot.status}
-                          </span>
-                        </div>
-                        {isApproved && (
-                          <span className="mt-0.5 text-[11px] text-emerald-600">
-                            by Admin
-                          </span>
-                        )}
+                    {slot.name}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700">{slot.company}</td>
+                  <td className="px-3 py-2 text-slate-700">
+                    {slot.technology}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700">{slot.round}</td>
+                  <td className="px-3 py-2 text-slate-700">
+                    {slot.createdAt}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700">
+                    {slot.dateLabel}
+                  </td>
+                  <td className="px-3 py-2 text-slate-700">
+                    {slot.timeLabel}
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-col">
+                      <div className="inline-flex items-center gap-2">
+                        <i
+                          className={`fa-solid ${statusIconClass}`}
+                          aria-hidden="true"
+                        />
+                        <span className={`font-semibold ${statusTextClass}`}>
+                          {slot.status}
+                        </span>
                       </div>
-                    </td>
-                    <td className="px-3 py-2">
-                      {isPending ? (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => onApproveSlot(slotId)}
-                            className="inline-flex items-center gap-2 rounded bg-emerald-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-emerald-600"
-                          >
-                            <i className="fa-solid fa-check" aria-hidden="true" />
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => onRejectSlot(slotId)}
-                            className="inline-flex items-center gap-2 rounded bg-red-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-red-600"
-                          >
-                            <i className="fa-solid fa-xmark" aria-hidden="true" />
-                            Reject
-                          </button>
-                          <button
-                            type="button"
-                            className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
-                            onClick={() => onDeleteSlot && onDeleteSlot(slotId)}
-                            aria-label="Delete"
-                          >
-                            <i className="fa-solid fa-trash" aria-hidden="true" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="flex justify-center">
-                          <button
-                            type="button"
-                            className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
-                            onClick={() => onDeleteSlot && onDeleteSlot(slotId)}
-                            aria-label="Delete"
-                          >
-                            <i className="fa-solid fa-trash" aria-hidden="true" />
-                          </button>
-                        </div>
+                      {isApproved && (
+                        <span className="mt-0.5 text-[11px] text-emerald-600">
+                          by Admin
+                        </span>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    {isPending ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => onApproveSlot(slot.id)}
+                          className="inline-flex items-center gap-2 rounded bg-emerald-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-emerald-600"
+                        >
+                          <i className="fa-solid fa-check" aria-hidden="true" />
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => onRejectSlot(slot.id)}
+                          className="inline-flex items-center gap-2 rounded bg-red-500 px-4 py-2 text-[11px] font-semibold text-white hover:bg-red-600"
+                        >
+                          <i className="fa-solid fa-xmark" aria-hidden="true" />
+                          Reject
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                          onClick={() => onRejectSlot(slot.id)}
+                          aria-label="Delete"
+                        >
+                          <i className="fa-solid fa-trash" aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-center">
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                          aria-label="Delete"
+                        >
+                          <i className="fa-solid fa-trash" aria-hidden="true" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1623,7 +1597,6 @@ function AdminHRsTable({
   onChangeSearch,
   onAddHR,
   onUpdateHR,
-  onDeleteHR,
 }) {
   const [companyFilter, setCompanyFilter] = useState('');
   const [techFilter, setTechFilter] = useState('');
@@ -1642,8 +1615,6 @@ function AdminHRsTable({
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const [showTechDropdown, setShowTechDropdown] = useState(false);
   const [showJobTypeDropdown, setShowJobTypeDropdown] = useState(false);
-  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
-  const [confirmDeleteName, setConfirmDeleteName] = useState('');
 
   const companyOptions = useMemo(
     () =>
@@ -2013,10 +1984,6 @@ function AdminHRsTable({
                     <button
                       type="button"
                       className="h-7 w-7 rounded bg-red-500 text-white text-xs font-semibold hover:bg-red-600 flex items-center justify-center"
-                      onClick={() => {
-                        setConfirmDeleteId(hr.id);
-                        setConfirmDeleteName(hr.name || '');
-                      }}
                       aria-label="Delete HR"
                     >
                       <i className="fa-solid fa-trash" aria-hidden="true" />
@@ -2028,48 +1995,6 @@ function AdminHRsTable({
           </tbody>
         </table>
       </div>
-
-      {/* Delete confirmation modal */}
-      {confirmDeleteId != null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-          <div className="w-full max-w-sm rounded-xl bg-white shadow-lg px-6 py-5">
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">
-              Are you sure you want to delete?
-            </h3>
-            <p className="text-xs text-slate-600 mb-4">
-              HR:{' '}
-              <span className="font-semibold">
-                {confirmDeleteName || 'Unnamed'}
-              </span>
-            </p>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmDeleteId(null);
-                  setConfirmDeleteName('');
-                }}
-                className="px-3 py-1.5 text-xs font-semibold rounded-full border border-slate-200 text-slate-700 bg-white hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (onDeleteHR && confirmDeleteId != null) {
-                    onDeleteHR(confirmDeleteId);
-                  }
-                  setConfirmDeleteId(null);
-                  setConfirmDeleteName('');
-                }}
-                className="px-3 py-1.5 text-xs font-semibold rounded-full bg-red-500 text-white hover:bg-red-600"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Add HR modal */}
       {showAddModal && (
@@ -2226,6 +2151,7 @@ function AdminHRsTable({
 function AdminCandidateSlotsView({ data, onBack }) {
   const { name, candidate, slots } = data;
 
+  const regime = candidate?.regime || 'new-70';
   const payment = candidate?.payment || '₹0';
   const experience =
     candidate?.experience && candidate.experience !== '-'
@@ -2256,6 +2182,34 @@ function AdminCandidateSlotsView({ data, onBack }) {
         <div className="text-[11px] sm:text-xs text-slate-600 whitespace-nowrap">
           Referred By:{' '}
           <span className="font-semibold text-slate-800">{referredBy}</span>
+        </div>
+      </div>
+
+      {/* Candidate summary bar */}
+      <div className="mb-5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-4 gap-4 text-center text-[11px] sm:text-xs text-slate-600">
+        <div className="flex flex-col items-center">
+          <span className="text-sm sm:text-base font-semibold text-slate-800">
+            {regime}
+          </span>
+          <span>Regime Type</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-sm sm:text-base font-semibold text-slate-800">
+            {payment}
+          </span>
+          <span>Payment</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-sm sm:text-base font-semibold text-slate-800">
+            {experience}
+          </span>
+          <span>Experience</span>
+        </div>
+        <div className="flex flex-col items-center">
+          <span className="text-sm sm:text-base font-semibold text-slate-800">
+            {totalCount}
+          </span>
+          <span>Total Interview Count</span>
         </div>
       </div>
 
@@ -2657,6 +2611,7 @@ export default function AdminDashboard() {
               totalScheduled: '0',
               lastInterview: '-',
               payment: data.payment || '₹0',
+              regime: '-',
               status: 'Active',
               selected: false,
             });
@@ -2673,117 +2628,101 @@ export default function AdminDashboard() {
     loadCandidatesFromFirestore();
   }, []);
 
-  // Load HRs from Firestore on mount and listen for real-time updates
-  useEffect(() => {
-    const q = query(collection(db, 'hrs'));
-    
-    // Real-time listener for HRs collection
-    const unsubscribe = onSnapshot(
-      q,
-      (querySnapshot) => {
-        const firestoreHRs = [];
-        
-        querySnapshot.forEach((doc) => {
-          const data = doc.data();
-          firestoreHRs.push({
-            id: `firestore_${doc.id}`, // Prefix to distinguish from mock HRs
-            firestoreId: doc.id, // Keep original Firestore ID
-            name: data.name || '',
-            email: data.email || '',
-            mobile: data.mobile || '-',
-            company: data.company || '',
-            technology: data.technology || '',
-            jobType: data.jobType || '',
-            addedBy: data.addedBy || 'Candidate',
-            createdAt: data.createdAt,
-          });
-        });
-
-        // Merge Firestore HRs with mock HRs, avoiding duplicates by email
-        setHrs((prev) => {
-          const mockHRs = prev.filter((h) => !String(h.id).startsWith('firestore_'));
-          const existingEmails = new Set(
-            [...mockHRs, ...firestoreHRs].map((h) => h.email?.toLowerCase())
-          );
-          
-          // Filter out duplicates from Firestore HRs
-          const uniqueFirestoreHRs = firestoreHRs.filter(
-            (h) => !mockHRs.some((m) => m.email?.toLowerCase() === h.email?.toLowerCase())
-          );
-          
-          // Assign numeric IDs for display consistency (starting from max mock ID + 1)
-          let maxMockId = mockHRs.length > 0 
-            ? Math.max(...mockHRs.map((h) => (typeof h.id === 'number' ? h.id : 0))) 
-            : 0;
-          
-          const numberedFirestoreHRs = uniqueFirestoreHRs.map((h, idx) => ({
-            ...h,
-            id: maxMockId + idx + 1, // Numeric ID for table display
-          }));
-          
-          return [...mockHRs, ...numberedFirestoreHRs];
-        });
-      },
-      (err) => {
-        console.error('Error listening to HRs collection:', err);
-      }
-    );
-
-    return () => unsubscribe();
-  }, []);
-
   const [slotFilter, setSlotFilter] = useState('all');
   const [slotSearch, setSlotSearch] = useState('');
   const [slots, setSlots] = useState([]);
-  const [slotsLoading, setSlotsLoading] = useState(true);
-  const [slotsError, setSlotsError] = useState(null);
-  const [slotStats, setSlotStats] = useState({
-    total: 0,
-    lastWeek: 0,
-    thisWeek: 0,
-    avgPerWeek: 0,
-    avgPerDay: 0,
-  });
   const [selectedSlotsCandidate, setSelectedSlotsCandidate] = useState(null);
   const [selectedViewCandidate, setSelectedViewCandidate] = useState(null);
   const [editingCandidate, setEditingCandidate] = useState(null);
   const [hrs, setHrs] = useState(MOCK_HRS);
   const [hrSearch, setHrSearch] = useState('');
-
-  // Load slots from Firebase
   useEffect(() => {
-    const loadSlots = async () => {
-      setSlotsLoading(true);
-      setSlotsError(null);
-      try {
-        const allSlots = await getAllSlots();
-        setSlots(allSlots);
-        
-        // Load statistics
-        const stats = await getSlotStatistics();
-        setSlotStats(stats);
-      } catch (err) {
-        console.error('Error loading slots:', err);
-        setSlotsError('Failed to load slots. Please try again.');
-        setSlots([]);
-      } finally {
-        setSlotsLoading(false);
-      }
-    };
+    const slotsRef = collection(db, 'slots');
+    const q = query(slotsRef);
+    const unsub = onSnapshot(q, (snap) => {
+      const items = snap.docs.map((doc) => {
+        const data = doc.data();
+        const dateStr = data.date || '';
+        const timeStr = data.time || '';
+        const duration = data.duration || '';
+        const createdAtVal =
+          data.createdAt && data.createdAt.toDate
+            ? data.createdAt.toDate()
+            : null;
+        const createdAtLabel = createdAtVal
+          ? createdAtVal.toLocaleString()
+          : '';
 
-    loadSlots();
+        let dateLabel = dateStr;
+        try {
+          dateLabel = dateStr
+            ? new Date(dateStr).toLocaleDateString()
+            : '';
+        } catch {
+          // keep raw dateStr
+        }
+
+        const durationLabel =
+          duration && Number(duration)
+            ? `${duration} mins`
+            : duration || '';
+        let timeLabel = timeStr || '';
+        if (timeStr && duration) {
+          try {
+            const [hh, mm] = timeStr.split(':').map((v) => parseInt(v, 10));
+            if (!Number.isNaN(hh) && !Number.isNaN(mm)) {
+              const dur = parseInt(duration, 10);
+              const start = new Date();
+              start.setHours(hh, mm, 0, 0);
+              const opts = { hour: 'numeric', minute: '2-digit' };
+              const startLabel = start.toLocaleTimeString(undefined, opts);
+              if (dur && !Number.isNaN(dur)) {
+                const end = new Date(start.getTime() + dur * 60000);
+                const endLabel = end.toLocaleTimeString(undefined, opts);
+                timeLabel = `${startLabel} - ${endLabel}`;
+              } else {
+                timeLabel = startLabel;
+              }
+            }
+          } catch {
+            timeLabel = timeStr;
+          }
+        }
+
+        return {
+          id: doc.id,
+          date: dateStr,
+          time: timeStr,
+          duration,
+          createdAtMs: createdAtVal ? createdAtVal.getTime() : 0,
+          name: data.candidateName || 'Candidate',
+          company: data.companyName || '',
+          technology: data.technology || '',
+          round: data.round || '',
+          createdAt: createdAtLabel,
+          dateLabel,
+          timeLabel,
+          status: data.status || 'pending',
+        };
+      });
+      // newest first (by createdAt)
+      items.sort((a, b) => b.createdAtMs - a.createdAtMs);
+      setSlots(items);
+    });
+    return () => unsub();
   }, []);
 
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
-      if (slotFilter === 'pending' && slot.status !== 'Pending') return false;
+      if (slotFilter === 'pending' && slot.status !== 'pending') return false;
       if (slotFilter === 'approved' && slot.status !== 'Approved') return false;
       if (slotFilter === 'rejected' && slot.status !== 'Rejected') return false;
       if (slotSearch.trim()) {
         const q = slotSearch.toLowerCase();
-        const candidateName = (slot.candidateName || '').toLowerCase();
-        const company = (slot.company || '').toLowerCase();
-        if (!candidateName.includes(q) && !company.includes(q)) {
+        if (
+          !slot.name.toLowerCase().includes(q) &&
+          !slot.company.toLowerCase().includes(q)
+        ) {
           return false;
         }
       }
@@ -2833,6 +2772,22 @@ export default function AdminDashboard() {
     });
   }, [hrs, hrSearch]);
 
+  const pendingApprovals = useMemo(
+    () => slots.filter((s) => s.status === 'pending').length,
+    [slots],
+  );
+
+  const latestPendingRequest = useMemo(() => {
+    const pending = slots.filter((s) => s.status === 'pending');
+    if (pending.length === 0) return null;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todaysPending = pending.filter((s) => s.date === todayStr);
+    if (todaysPending.length > 0) {
+      return todaysPending[0];
+    }
+    return pending[0];
+  }, [slots]);
+
   const handleToggleStatus = (id) => {
     setCandidates((prev) =>
       prev.map((c) =>
@@ -2850,7 +2805,7 @@ export default function AdminDashboard() {
   const handleViewCandidate = (id) => {
     const candidate = candidates.find((c) => c.id === id);
     if (candidate) {
-      const candidateSlots = slots.filter((s) => s.candidateName === candidate.name);
+      const candidateSlots = slots.filter((s) => s.name === candidate.name);
       setSelectedViewCandidate({
         name: candidate.name,
         candidate,
@@ -2866,78 +2821,32 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleApproveSlot = async (slotId) => {
+  const handleApproveSlot = async (id) => {
     try {
-      const updatedSlot = await updateSlotStatus(slotId, 'Approved');
-      setSlots((prev) =>
-        prev.map((slot) =>
-          slot.firestoreId === slotId ? updatedSlot : slot,
-        ),
-      );
-      
-      // Refresh statistics
-      const stats = await getSlotStatistics();
-      setSlotStats(stats);
-    } catch (error) {
-      console.error('Error approving slot:', error);
-      alert('Failed to approve slot. Please try again.');
+      await updateDoc(doc(db, 'slots', id), { status: 'Approved' });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to approve slot:', err);
     }
   };
 
-  const handleRejectSlot = async (slotId) => {
+  const handleRejectSlot = async (id) => {
     try {
-      const updatedSlot = await updateSlotStatus(slotId, 'Rejected');
-      setSlots((prev) =>
-        prev.map((slot) =>
-          slot.firestoreId === slotId ? updatedSlot : slot,
-        ),
-      );
-      
-      // Refresh statistics
-      const stats = await getSlotStatistics();
-      setSlotStats(stats);
-    } catch (error) {
-      console.error('Error rejecting slot:', error);
-      alert('Failed to reject slot. Please try again.');
-    }
-  };
-
-  const handleDeleteSlot = async (slotId) => {
-    if (!window.confirm('Are you sure you want to delete this slot?')) {
-      return;
-    }
-
-    try {
-      await deleteSlot(slotId);
-      setSlots((prev) => prev.filter((slot) => slot.firestoreId !== slotId));
-      
-      // Refresh statistics
-      const stats = await getSlotStatistics();
-      setSlotStats(stats);
-    } catch (error) {
-      console.error('Error deleting slot:', error);
-      alert('Failed to delete slot. Please try again.');
-    }
-  };
-
-  const handleDeleteHR = async (id) => {
-    const target = hrs.find((h) => h.id === id);
-    setHrs((prev) => prev.filter((h) => h.id !== id));
-
-    if (target && target.firestoreId) {
-      try {
-        await deleteDoc(doc(db, 'hrs', target.firestoreId));
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('Failed to delete HR from Firestore:', err);
-      }
+      await updateDoc(doc(db, 'slots', id), { status: 'Rejected' });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to reject slot:', err);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
       <AdminHeader />
-      <AdminTopNav activeTab={activeTab} onChange={setActiveTab} />
+      <AdminTopNav
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        pendingApprovals={pendingApprovals}
+      />
       <main className="p-2 sm:p-4 md:p-8">
         {activeTab === 'candidates' ? (
           showAddForm ? (
@@ -2960,6 +2869,7 @@ export default function AdminDashboard() {
                   totalScheduled: '0',
                   lastInterview: '-',
                   payment: data.payment || '₹0',
+                  regime: '-',
                   status: 'Active',
                   selected: false,
                 };
@@ -3039,16 +2949,12 @@ export default function AdminDashboard() {
               onBackToHome={() => setActiveTab('home')}
               onApproveSlot={handleApproveSlot}
               onRejectSlot={handleRejectSlot}
-              onDeleteSlot={handleDeleteSlot}
-              loading={slotsLoading}
-              error={slotsError}
-              stats={slotStats}
               onOpenCandidateSlots={(candidateName) => {
                 const candidate = candidates.find(
                   (c) => c.name === candidateName,
                 );
                 const candidateSlots = slots.filter(
-                  (s) => (s.candidateName || s.name) === candidateName,
+                  (s) => s.name === candidateName,
                 );
                 setSelectedSlotsCandidate({
                   name: candidateName,
@@ -3065,10 +2971,9 @@ export default function AdminDashboard() {
             search={hrSearch}
             onBackToHome={() => setActiveTab('home')}
             onChangeSearch={setHrSearch}
-            onDeleteHR={handleDeleteHR}
-            onAddHR={async (data) => {
+            onAddHR={(data) => {
               const nextId = hrs.length
-                ? Math.max(...hrs.map((h) => (typeof h.id === 'number' ? h.id : 0))) + 1
+                ? Math.max(...hrs.map((h) => h.id)) + 1
                 : 1;
               const newHr = {
                 id: nextId,
@@ -3078,28 +2983,9 @@ export default function AdminDashboard() {
                 company: data.company || '',
                 technology: data.technology || '',
                 jobType: data.jobType || '',
-                addedBy: data.addedBy || 'Admin',
+                addedBy: data.addedBy || '',
               };
-              
-              // Update local state immediately
               setHrs((prev) => [...prev, newHr]);
-              
-              // Save to Firestore
-              try {
-                await addDoc(collection(db, 'hrs'), {
-                  name: newHr.name,
-                  email: newHr.email,
-                  mobile: newHr.mobile,
-                  company: newHr.company,
-                  technology: newHr.technology,
-                  jobType: newHr.jobType,
-                  addedBy: newHr.addedBy,
-                  createdAt: serverTimestamp(),
-                });
-                console.log('Saved HR to Firestore from Admin:', newHr);
-              } catch (err) {
-                console.error('Failed to save HR to Firestore:', err);
-              }
             }}
             onUpdateHR={(id, data) => {
               setHrs((prev) =>
@@ -3124,48 +3010,87 @@ export default function AdminDashboard() {
         ) : activeTab === 'leaves' ? (
           <AdminLeavesTable onBackToHome={() => setActiveTab('home')} />
         ) : (
-          <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
-            {/* Admin calendar header - match screenshot */}
-            <div className="border-b border-slate-200 pb-3 sm:pb-4">
-              <div className="relative flex items-center justify-between gap-3">
-                {/* Left: Today (no date text) */}
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700 w-32 min-w-0">
-                  <CalendarIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                  <span className="font-medium truncate">Today</span>
+          <>
+            {latestPendingRequest && (
+              <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 flex items-center justify-between text-xs sm:text-sm">
+                <div className="flex flex-wrap items-center gap-2 text-slate-800">
+                  <span className="font-semibold">
+                    {latestPendingRequest.name}
+                  </span>
+                  <span className="text-slate-400">|</span>
+                  {latestPendingRequest.date === new Date().toISOString().slice(0, 10) ? (
+                    <span className="text-emerald-700 font-semibold">
+                      Today
+                    </span>
+                  ) : (
+                    <span>{latestPendingRequest.dateLabel}</span>
+                  )}
+                  <span className="text-slate-400">|</span>
+                  <span>{latestPendingRequest.timeLabel}</span>
                 </div>
-
-                {/* Center: Slot Booking Calendar */}
-                <span className="absolute left-1/2 -translate-x-1/2 text-xs sm:text-sm font-semibold text-purple-600">
-                  Slot Booking Calendar
-                </span>
-
-                {/* Right: Download button only (stats are in CalendarToolbar below) */}
-                <div className="flex items-center justify-end">
-                  <a
-                    href="/interview_process_candidate_details.pdf"
-                    download="Personal_Detail_Form.pdf"
-                    className="inline-flex items-center gap-2 rounded-md bg-sky-500 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-white shadow hover:bg-sky-600 whitespace-nowrap"
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleApproveSlot(latestPendingRequest.id)}
+                    className="inline-flex items-center gap-1 rounded bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-emerald-600"
                   >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-4 w-4"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                    >
-                      <path d="M12 3v12" />
-                      <path d="M8 11l4 4 4-4" />
-                      <rect x="4" y="17" width="16" height="3" rx="1" />
-                    </svg>
-                    <span>Download Personal Detail Form</span>
-                  </a>
+                    <i className="fa-solid fa-check" aria-hidden="true" />
+                    Approve
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRejectSlot(latestPendingRequest.id)}
+                    className="inline-flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-red-600"
+                  >
+                    <i className="fa-solid fa-xmark" aria-hidden="true" />
+                    Reject
+                  </button>
                 </div>
               </div>
+            )}
+            <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
+              {/* Admin calendar header - match screenshot */}
+              <div className="border-b border-slate-200 pb-3 sm:pb-4">
+                <div className="relative flex items-center justify-between gap-3">
+                  {/* Left: Today (no date text) */}
+                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700 w-32 min-w-0">
+                    <CalendarIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
+                    <span className="font-medium truncate">Today</span>
+                  </div>
 
-              <WeekCalendar />
+                  {/* Center: Slot Booking Calendar */}
+                  <span className="absolute left-1/2 -translate-x-1/2 text-xs sm:text-sm font-semibold text-purple-600">
+                    Slot Booking Calendar
+                  </span>
+
+                  {/* Right: Download button only (stats are in CalendarToolbar below) */}
+                  <div className="flex items-center justify-end">
+                    <a
+                      href="/interview_process_candidate_details.pdf"
+                      download="Personal_Detail_Form.pdf"
+                      className="inline-flex items-center gap-2 rounded-md bg-sky-500 px-3 sm:px-4 py-1.5 text-xs sm:text-sm font-semibold text-white shadow hover:bg-sky-600 whitespace-nowrap"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M12 3v12" />
+                        <path d="M8 11l4 4 4-4" />
+                        <rect x="4" y="17" width="16" height="3" rx="1" />
+                      </svg>
+                      <span>Download Personal Detail Form</span>
+                    </a>
+                  </div>
+                </div>
+
+                <WeekCalendar />
+              </div>
             </div>
-          </div>
+          </>
         )}
       </main>
     </div>
