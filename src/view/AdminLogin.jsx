@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from 'react-router-dom';
 
 const ADMIN_MOBILE = '9999999999';
@@ -72,7 +71,7 @@ export default function AdminLogin() {
               onClick={() => setPasswordVisible((v) => !v)}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
             >
-              {passwordVisible ? <EyeSlashIcon className="w-5 h-5" /> : <EyeIcon className="w-5 h-5" />}
+              {passwordVisible ? <i className="fa-solid fa-eye-slash w-5 h-5" aria-hidden="true" /> : <i className="fa-solid fa-eye w-5 h-5" aria-hidden="true" />}
             </button>
           </div>
         </div>

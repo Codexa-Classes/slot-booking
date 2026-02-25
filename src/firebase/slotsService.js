@@ -11,10 +11,88 @@ import {
   orderBy,
   serverTimestamp,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
 
 const SLOTS_COLLECTION = 'slots';
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * Format date as DD-MMM-YYYY (e.g. 21-Feb-2026). Use everywhere for consistent display.
+ */
+export function formatDateDDMMYYYY(dateVal) {
+  if (!dateVal) return '';
+  const d = dateVal?.toDate ? dateVal.toDate() : new Date(dateVal);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = MONTHS_SHORT[d.getMonth()];
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+}
+
+/**
+ * Convert an approved slot to calendar event format for SlotCalendar.
+ * Expects slot with: date (Date), startHour, startMinute, duration, candidateName, company.
+ */
+export function slotToCalendarEvent(slot) {
+  const d = slot.date?.toDate ? slot.date.toDate() : new Date(slot.date);
+  const start = new Date(d);
+  start.setHours(slot.startHour ?? 0, slot.startMinute ?? 0, 0, 0);
+  const end = new Date(start.getTime() + (slot.duration || 30) * 60 * 1000);
+  const title = [slot.candidateName || slot.name || 'Slot', slot.company].filter(Boolean).join(' - ');
+  return {
+    id: slot.id || slot.firestoreId,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    title: title || 'Interview',
+  };
+}
+
+/**
+ * Subscribe to approved slots and call callback with calendar events.
+ * Returns unsubscribe function.
+ */
+export function subscribeToApprovedSlots(callback) {
+  const slotsRef = collection(db, SLOTS_COLLECTION);
+  const q = query(
+    slotsRef,
+    where('status', '==', 'Approved'),
+  );
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const slots = snapshot.docs.map((d) => slotDocToUI(d));
+      const events = slots.map(slotToCalendarEvent);
+      callback(events);
+    },
+    (err) => {
+      console.error('Error subscribing to approved slots:', err);
+      callback([]);
+    },
+  );
+}
+
+/**
+ * Subscribe to all slots (any status) and call callback with calendar events.
+ * Returns unsubscribe function.
+ */
+export function subscribeToAllSlots(callback) {
+  const slotsRef = collection(db, SLOTS_COLLECTION);
+  return onSnapshot(
+    slotsRef,
+    (snapshot) => {
+      const slots = snapshot.docs.map((d) => slotDocToUI(d));
+      const events = slots.map(slotToCalendarEvent);
+      callback(events);
+    },
+    (err) => {
+      console.error('Error subscribing to all slots:', err);
+      callback([]);
+    },
+  );
+}
 
 /**
  * Format timestamp to readable date label
@@ -39,11 +117,7 @@ function formatDateLabel(date) {
     const daysDiff = Math.ceil((slotDay - today) / (1000 * 60 * 60 * 24));
     return `Upcoming (In ${daysDiff} days)`;
   } else {
-    return slotDate.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    return formatDateDDMMYYYY(slotDate);
   }
 }
 
@@ -80,6 +154,31 @@ function formatTimeLabel(hour, minute, duration) {
 }
 
 /**
+ * Format createdAt to exact date and time (e.g. "21 Feb 2026, 3:45 PM")
+ */
+function formatCreatedAtExact(timestamp) {
+  if (!timestamp) return '–';
+  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const dateStr = formatDateDDMMYYYY(date);
+  const timeStr = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+  return `${dateStr}, ${timeStr}`;
+}
+
+/**
+ * Format slot date to exact date (e.g. "21 Feb 2026")
+ */
+function formatDateExact(date) {
+  if (!date) return '–';
+  const d = date.toDate ? date.toDate() : new Date(date);
+  const str = formatDateDDMMYYYY(d);
+  return str || '–';
+}
+
+/**
  * Format createdAt timestamp to readable string
  */
 function formatCreatedAt(timestamp) {
@@ -103,24 +202,40 @@ function formatCreatedAt(timestamp) {
   }
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return `${diffDays} days ago`;
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  return formatDateDDMMYYYY(date);
 }
 
 /**
- * Convert Firestore slot document to UI format
+ * Convert Firestore slot document to UI format.
+ * Supports both admin format (startHour, startMinute, company) and legacy candidate format (time string, companyName).
  */
 function slotDocToUI(docSnapshot) {
   const data = docSnapshot.data();
   const id = docSnapshot.id;
 
-  // Parse date
-  const slotDate = data.date?.toDate ? data.date.toDate() : new Date(data.date);
-  const startHour = String(data.startHour || 0).padStart(2, '0');
-  const startMinute = String(data.startMinute || 0).padStart(2, '0');
+  // Parse date: Timestamp, Date, or ISO/date string
+  let slotDate;
+  if (data.date?.toDate) {
+    slotDate = data.date.toDate();
+  } else if (data.date instanceof Date) {
+    slotDate = data.date;
+  } else {
+    slotDate = new Date(data.date && typeof data.date === 'string' ? data.date + 'T00:00:00' : data.date);
+  }
+
+  // startHour/startMinute: use if present, else parse from time string (e.g. "14:30")
+  let startHour = data.startHour;
+  let startMinute = data.startMinute;
+  if (startHour == null && data.time) {
+    const parts = String(data.time).trim().split(':');
+    startHour = parseInt(parts[0], 10) || 0;
+    startMinute = parseInt(parts[1], 10) || 0;
+  }
+  startHour = startHour != null ? startHour : 0;
+  startMinute = startMinute != null ? startMinute : 0;
+
+  const company = data.company || data.companyName || '';
+  const duration = data.duration != null ? Number(data.duration) : 30;
 
   return {
     id,
@@ -129,25 +244,92 @@ function slotDocToUI(docSnapshot) {
     candidateName: data.candidateName || '',
     hrId: data.hrId || '',
     hrName: data.hrName || '',
-    company: data.company || '',
+    hrEmail: data.hrEmail || '',
+    hrMobile: data.hrMobile || '',
+    company,
     technology: data.technology || '',
     round: data.round || '',
     date: slotDate,
-    startHour: data.startHour,
-    startMinute: data.startMinute,
-    duration: data.duration || 30,
+    startHour,
+    startMinute,
+    duration,
     status: data.status || 'Pending',
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
     // Formatted labels for UI
-    dateLabel: formatDateLabel(data.date),
-    timeLabel: formatTimeLabel(
-      data.startHour,
-      data.startMinute,
-      data.duration,
-    ),
+    dateLabel: formatDateLabel(slotDate),
+    dateExactLabel: formatDateExact(slotDate),
+    timeLabel: formatTimeLabel(startHour, startMinute, duration),
     createdAtLabel: formatCreatedAt(data.createdAt),
+    createdAtExactLabel: formatCreatedAtExact(data.createdAt),
   };
+}
+
+/** Convert a Firestore query snapshot of slots to UI format (for real-time listener). */
+export function slotsSnapshotToUI(snapshot) {
+  return snapshot.docs.map((d) => slotDocToUI(d));
+}
+
+/**
+ * Fetch slots for a given date (YYYY-MM-DD) for availability check.
+ * Returns minimal time info: startHour, startMinute, duration (in minutes from midnight).
+ */
+export async function getSlotsForDate(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return [];
+  try {
+    const startOfDay = new Date(dateStr + 'T00:00:00');
+    const endOfDay = new Date(dateStr + 'T23:59:59.999');
+    const startTimestamp = Timestamp.fromDate(startOfDay);
+    const endTimestamp = Timestamp.fromDate(endOfDay);
+
+    const slotsRef = collection(db, SLOTS_COLLECTION);
+    const q = query(
+      slotsRef,
+      where('date', '>=', startTimestamp),
+      where('date', '<=', endTimestamp),
+    );
+    const snapshot = await getDocs(q);
+
+    const result = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      let startHour = data.startHour;
+      let startMinute = data.startMinute;
+      if (startHour == null && data.time) {
+        const parts = String(data.time).trim().split(':');
+        startHour = parseInt(parts[0], 10) || 0;
+        startMinute = parseInt(parts[1], 10) || 0;
+      }
+      startHour = startHour != null ? startHour : 0;
+      startMinute = startMinute != null ? startMinute : 0;
+      const duration = data.duration != null ? Number(data.duration) : 30;
+      result.push({ startHour, startMinute, duration });
+    });
+    return result;
+  } catch (error) {
+    console.error('Error fetching slots for date:', error);
+    return [];
+  }
+}
+
+/**
+ * Check if a requested time range overlaps any existing slots on the same date.
+ * Requested: startHour, startMinute, duration (minutes).
+ * Returns true if slot is available (no overlap).
+ */
+export function isSlotAvailable(existingSlots, startHour, startMinute, durationMins) {
+  const reqStart = parseInt(startHour, 10) * 60 + parseInt(startMinute, 10);
+  const reqEnd = reqStart + parseInt(durationMins, 10);
+
+  for (const slot of existingSlots) {
+    const sh = slot.startHour != null ? slot.startHour : 0;
+    const sm = slot.startMinute != null ? slot.startMinute : 0;
+    const dur = slot.duration != null ? slot.duration : 30;
+    const exStart = sh * 60 + sm;
+    const exEnd = exStart + dur;
+    if (reqStart < exEnd && reqEnd > exStart) return false;
+  }
+  return true;
 }
 
 /**
@@ -357,39 +539,73 @@ export async function getSlotStatistics() {
   try {
     const allSlots = await getAllSlots();
     const now = new Date();
-    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
+    // Normalize to start of today
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+
+    // Define calendar weeks starting on Monday
+    const startOfWeek = new Date(startOfToday);
+    const day = startOfWeek.getDay(); // 0 (Sun) .. 6 (Sat)
+    const diffToMonday = (day + 6) % 7; // 0 if Monday, 1 if Tuesday, etc.
+    startOfWeek.setDate(startOfWeek.getDate() - diffToMonday);
+
+    const startOfNextWeek = new Date(startOfWeek);
+    startOfNextWeek.setDate(startOfNextWeek.getDate() + 7);
+
+    const startOfLastWeek = new Date(startOfWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    const endOfToday = new Date(startOfToday);
+    endOfToday.setDate(endOfToday.getDate() + 1);
+
+    const getSlotDateOnly = (slot) => {
+      const d = slot.date?.toDate ? slot.date.toDate() : new Date(slot.date);
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    };
+
+    // Only consider approved slots for statistics
+    const approvedSlots = allSlots.filter((slot) => slot.status === 'Approved');
+
+    // Last Week: previous calendar week (Mon–Sun)
     const lastWeekSlots = allSlots.filter((slot) => {
-      const slotDate = slot.date?.toDate ? slot.date.toDate() : new Date(slot.date);
-      return slotDate >= oneWeekAgo && slotDate < now;
+      const slotDate = getSlotDateOnly(slot);
+      return slotDate >= startOfLastWeek && slotDate < startOfWeek;
     });
 
+    // This Week: current calendar week (full Mon–Sun)
     const thisWeekSlots = allSlots.filter((slot) => {
-      const slotDate = slot.date?.toDate ? slot.date.toDate() : new Date(slot.date);
-      return slotDate >= now;
+      const slotDate = getSlotDateOnly(slot);
+      return slotDate >= startOfWeek && slotDate < startOfNextWeek;
     });
 
-    // Calculate average slots per week (last 4 weeks)
-    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
-    const recentSlots = allSlots.filter((slot) => {
-      const slotDate = slot.date?.toDate ? slot.date.toDate() : new Date(slot.date);
-      return slotDate >= fourWeeksAgo;
-    });
-    const avgPerWeek = recentSlots.length / 4;
+    // Average per week over the last 4 calendar weeks (including this week)
+    const startOfFourWeeksAgo = new Date(startOfWeek);
+    startOfFourWeeksAgo.setDate(startOfFourWeeksAgo.getDate() - 21); // 3 weeks before current week
 
-    // Calculate average slots per day (last 30 days)
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const dailySlots = allSlots.filter((slot) => {
-      const slotDate = slot.date?.toDate ? slot.date.toDate() : new Date(slot.date);
-      return slotDate >= thirtyDaysAgo;
+    const fourWeekSlots = approvedSlots.filter((slot) => {
+      const slotDate = getSlotDateOnly(slot);
+      return slotDate >= startOfFourWeeksAgo && slotDate < startOfNextWeek;
+    });
+    const avgPerWeek = fourWeekSlots.length / 4;
+
+    // Average per day over the last 30 days (including today)
+    const thirtyDaysAgo = new Date(startOfToday);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29);
+
+    const dailySlots = approvedSlots.filter((slot) => {
+      const slotDate = getSlotDateOnly(slot);
+      return slotDate >= thirtyDaysAgo && slotDate < endOfToday;
     });
     const avgPerDay = dailySlots.length / 30;
 
     return {
-      total: allSlots.length,
-      lastWeek: lastWeekSlots.length,
-      thisWeek: thisWeekSlots.length,
+      total: approvedSlots.length,
+      lastWeek: lastWeekSlots.filter((s) => s.status === 'Approved').length,
+      thisWeek: thisWeekSlots.filter((s) => s.status === 'Approved').length,
       avgPerWeek: Math.round(avgPerWeek * 10) / 10,
       avgPerDay: Math.round(avgPerDay * 10) / 10,
       pending: allSlots.filter((s) => s.status === 'Pending').length,
@@ -400,4 +616,45 @@ export async function getSlotStatistics() {
     console.error('Error calculating slot statistics:', error);
     throw error;
   }
+}
+
+// --- Admin Leaves (block slot booking on these dates) ---
+const LEAVES_COLLECTION = 'leaves';
+
+/**
+ * Get all leave dates from Firestore. Returns array of { id, date } where date is YYYY-MM-DD.
+ */
+export async function getLeaves() {
+  try {
+    const ref = collection(db, LEAVES_COLLECTION);
+    const snapshot = await getDocs(ref);
+    return snapshot.docs.map((d) => ({
+      id: d.id,
+      date: d.data().date || '',
+      dateLabel: d.data().dateLabel || '',
+    }));
+  } catch (err) {
+    console.error('Error loading leaves:', err);
+    return [];
+  }
+}
+
+/**
+ * Add a leave day. dateStr should be YYYY-MM-DD, dateLabel is for display.
+ */
+export async function addLeave(dateStr, dateLabel) {
+  const ref = collection(db, LEAVES_COLLECTION);
+  const docRef = await addDoc(ref, {
+    date: dateStr,
+    dateLabel: dateLabel || dateStr,
+    createdAt: serverTimestamp(),
+  });
+  return docRef.id;
+}
+
+/**
+ * Delete a leave by Firestore document id.
+ */
+export async function deleteLeave(id) {
+  await deleteDoc(doc(db, LEAVES_COLLECTION, id));
 }

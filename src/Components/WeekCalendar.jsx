@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   getWeekStart,
   getWeekDays,
@@ -8,11 +8,25 @@ import {
 } from '../calendar';
 import CalendarToolbar from './CalendarToolbar';
 import SlotCalendar from './SlotCalendar';
+import { subscribeToApprovedSlots, getLeaves } from '../firebase/slotsService';
 
-// No props. Always uses current system date - no hardcoded dates.
+// No props. Always uses current system date - loads approved slots for calendar.
 function WeekCalendar() {
   const today = new Date();
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
+  const [events, setEvents] = useState([]);
+  const [leaveDates, setLeaveDates] = useState([]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToApprovedSlots((approvedEvents) => {
+      setEvents(approvedEvents);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    getLeaves().then((list) => setLeaveDates(list.map((l) => l.date).filter(Boolean)));
+  }, []);
 
   const weekEnd = useMemo(() => {
     const days = getWeekDays(weekStart, 6);
@@ -23,8 +37,6 @@ function WeekCalendar() {
     () => formatWeekRangeLabel(weekStart, weekEnd),
     [weekStart, weekEnd],
   );
-
-  const events = useMemo(() => [], []);
   const todaysSlotsCount = useMemo(
     () =>
       events.filter((event) => {
@@ -74,8 +86,15 @@ function WeekCalendar() {
           weeklySlotsCount={weeklySlotsCount}
         />
       </div>
-      <div className="mt-4 flex justify-center">
-        <SlotCalendar today={today} weekStart={weekStart} events={weekEvents} />
+      <div className="mt-4 overflow-x-auto">
+        <div className="min-w-[720px]">
+          <SlotCalendar
+            today={today}
+            weekStart={weekStart}
+            events={weekEvents}
+            leaveDates={leaveDates}
+          />
+        </div>
       </div>
     </>
   );

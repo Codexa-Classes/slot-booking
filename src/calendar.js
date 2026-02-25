@@ -34,35 +34,27 @@ export function getWeekDays(weekStart, count = 6) {
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-export function formatHeaderToday(date) {
-  const d = date;
-  const day = d.getDate();
-  const month = d.toLocaleString('default', { month: 'long' });
+/** DD-MMM-YYYY (e.g. 21-Feb-2026) */
+function fmtDDMMMYYYY(d) {
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = SHORT_MONTHS[d.getMonth()];
   const year = d.getFullYear();
-  return `${day} ${month} ${year}`;
+  return `${day}-${month}-${year}`;
+}
+
+export function formatHeaderToday(date) {
+  return fmtDDMMMYYYY(date);
 }
 
 export function formatWeekRangeLabel(weekStart, weekEnd) {
-  const startMonthShort = SHORT_MONTHS[weekStart.getMonth()];
-  const endMonthShort = SHORT_MONTHS[weekEnd.getMonth()];
-  const startDay = weekStart.getDate();
-  const endDay = weekEnd.getDate();
-  const year = weekEnd.getFullYear();
-
-  if (startMonthShort === endMonthShort) {
-    return `${startMonthShort} ${startDay} – ${endDay}, ${year}`;
-  }
-
-  return `${startMonthShort} ${startDay} – ${endMonthShort} ${endDay}, ${year}`;
+  return `${fmtDDMMMYYYY(weekStart)} – ${fmtDDMMMYYYY(weekEnd)}`;
 }
 
 export function formatDayHeader(date) {
   const weekday = WEEKDAY_NAMES[date.getDay()];
-  const monthShort = SHORT_MONTHS[date.getMonth()];
-  const day = date.getDate();
   return {
     weekday,
-    label: `${weekday}, ${monthShort} ${day}`,
+    label: `${weekday}, ${fmtDDMMMYYYY(date)}`,
   };
 }
 

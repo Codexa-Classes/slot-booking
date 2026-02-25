@@ -9,11 +9,12 @@ function CalendarToolbar({
   todaysSlotsCount,
   weeklySlotsCount,
   onOpenMobileCalendar,
+  onReload,
 }) {
   return (
-    <div className="relative flex items-center justify-between border-b border-slate-200 bg-white px-1 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-3 gap-1 sm:gap-2 md:gap-3 min-h-12 sm:min-h-14 overflow-x-auto">
+    <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200 bg-white px-1 sm:px-3 md:px-4 py-1.5 sm:py-2 md:py-3 gap-1 sm:gap-2 md:gap-3 min-h-12 sm:min-h-14">
       {/* Left Navigation Controls (next only) */}
-      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 z-10">
+      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 z-10 justify-center sm:justify-start w-full sm:w-auto order-3 sm:order-none">
         <button
           type="button"
           onClick={
@@ -47,35 +48,55 @@ function CalendarToolbar({
         </button>
       </div>
 
-      {/* Center - Date Range (correct center) */}
-      <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[10px] sm:text-xs md:text-sm font-semibold text-slate-800 whitespace-nowrap">
-        {rangeLabel}
-      </span>
+      {/* Center - Date Range with reload */}
+      {/* Desktop / tablet: keep centered absolute for exact layout */}
+      <div className="hidden sm:flex absolute left-1/2 -translate-x-1/2 items-center gap-1">
+        <span className="pointer-events-none text-[10px] sm:text-xs md:text-sm font-semibold text-slate-800 whitespace-nowrap">
+          {rangeLabel}
+        </span>
+        {onReload && (
+          <button
+            type="button"
+            onClick={onReload}
+            className="inline-flex h-6 w-6 sm:h-7 sm:w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 pointer-events-auto"
+            aria-label="Reload calendar"
+          >
+            <i className="fa-solid fa-rotate-right text-xs" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+
+      {/* Mobile: use normal flow so header doesn't overlap */}
+      <div className="flex sm:hidden flex-1 items-center justify-center gap-1 order-2 sm:order-none">
+        <span className="text-[10px] font-semibold text-slate-800 whitespace-nowrap">
+          {rangeLabel}
+        </span>
+        {onReload && (
+          <button
+            type="button"
+            onClick={onReload}
+            className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+            aria-label="Reload calendar"
+          >
+            <i className="fa-solid fa-rotate-right text-xs" aria-hidden="true" />
+          </button>
+        )}
+      </div>
 
       {/* Right - Today & Weekly Slots summary */}
-      <div className="flex items-center gap-8 sm:gap-10 md:gap-12 flex-shrink-0 pr-2 z-10">
-        <div className="flex flex-col items-center">
-          <span className="text-sm sm:text-base font-semibold text-slate-900">
+      <div className="flex flex-col sm:flex-row items-center sm:items-center justify-center sm:justify-end gap-1 sm:gap-6 flex-shrink-0 pr-2 z-10 text-[10px] sm:text-xs md:text-sm text-slate-700 mt-1 sm:mt-0 text-center sm:text-left order-1 sm:order-none">
+        <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-1 whitespace-nowrap">
+          <span className="font-semibold text-slate-900">
             {todaysSlotsCount}
           </span>
-          <span className="mt-0.5 text-[9px] sm:text-[10px] font-medium text-slate-500">
-            Total Slots
-          </span>
-          <span className="text-[9px] sm:text-[10px] font-medium text-slate-500">
-            Today
-          </span>
+          <span className="leading-tight">Total Slots Today</span>
         </div>
-
-        <div className="flex flex-col items-center">
-          <span className="text-sm sm:text-base font-semibold text-slate-900">
+        <span className="hidden sm:inline-block h-3 w-px bg-slate-300" />
+        <div className="flex flex-col sm:flex-row sm:items-baseline gap-0.5 sm:gap-1 whitespace-nowrap">
+          <span className="font-semibold text-slate-900">
             {weeklySlotsCount}
           </span>
-          <span className="mt-0.5 text-[9px] sm:text-[10px] font-medium text-slate-500">
-            Total This Week
-          </span>
-          <span className="text-[9px] sm:text-[10px] font-medium text-slate-500">
-            Slots
-          </span>
+          <span className="leading-tight">Total Slots This Week</span>
         </div>
       </div>
     </div>

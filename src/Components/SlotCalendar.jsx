@@ -11,10 +11,18 @@ function hourLabel(hour24) {
   return `${hour12}:00 ${isPM ? 'PM' : 'AM'}`;
 }
 
-function SlotCalendar({ today: todayProp, weekStart, events }) {
+function dayToYYYYMMDD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) {
   const today = todayProp ?? new Date();
   const todayString = today.toDateString();
   const days = useMemo(() => getWeekDays(weekStart, 6), [weekStart]);
+  const leaveSet = useMemo(() => new Set(leaveDates), [leaveDates]);
 
   const eventsByDay = useMemo(() => {
     return days.map((day) => {
@@ -43,16 +51,17 @@ function SlotCalendar({ today: todayProp, weekStart, events }) {
 
   return (
     <div className="relative bg-white">
-      <div className="overflow-x-auto">
+      <div>
         <table
-          className="w-full min-w-[720px] border-collapse text-xs sm:text-sm"
+          className="w-full border-collapse text-[0.9rem]"
           style={{ tableLayout: 'fixed' }}
         >
           <colgroup>
             <col className="w-24" />
             {days.map((day) => (
-              <col key={day.toISOString()} className="min-w-[100px]" />
+              <col key={day.toISOString()} className="min-w-[120px] sm:min-w-[100px]" />
             ))}
+            <col className="w-24" />
           </colgroup>
           <thead>
             <tr>
@@ -63,19 +72,44 @@ function SlotCalendar({ today: todayProp, weekStart, events }) {
               />
               {days.map((day, dayIdx) => {
                 const isToday = dayIdx === todayIndex;
+                const isLeaveDay = leaveSet.has(dayToYYYYMMDD(day));
                 const dayHeader = formatDayHeader(day);
                 return (
                   <th
                     key={day.toISOString()}
-                    className={`border border-slate-300 px-2 py-2 text-center text-slate-700 ${isToday ? 'bg-pink-100' : 'bg-slate-50'}`}
+                    className={`border px-2 py-2 text-center ${
+                      isLeaveDay
+                        ? 'bg-red-100 text-red-800 border-red-300'
+                        : isToday
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-slate-50 text-slate-700 border-slate-300'
+                    }`}
                     style={{ height: ROW_HEIGHT }}
                   >
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.16em] whitespace-nowrap">
-                      {dayHeader.weekday} {dayHeader.label.replace(`${dayHeader.weekday}, `, '')}
-                    </span>
+                    {/* Mobile: stack weekday and date to avoid mixing/overlap */}
+                    <div className="sm:hidden flex flex-col items-center leading-tight">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
+                        {dayHeader.weekday}
+                      </span>
+                      <span className="text-[10px] text-slate-700">
+                        {dayHeader.label.replace(`${dayHeader.weekday}, `, '')}
+                      </span>
+                    </div>
+                    {/* Desktop / tablet: keep single-line compact header */}
+                    <div className="hidden sm:block">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] whitespace-nowrap">
+                        {dayHeader.weekday}{' '}
+                        {dayHeader.label.replace(`${dayHeader.weekday}, `, '')}
+                      </span>
+                    </div>
                   </th>
                 );
               })}
+              {/* Top-right corner: empty for right-side time column */}
+              <th
+                className="border border-slate-300 bg-slate-50 align-middle"
+                style={{ height: ROW_HEIGHT }}
+              />
             </tr>
           </thead>
           <tbody>
@@ -90,6 +124,7 @@ function SlotCalendar({ today: todayProp, weekStart, events }) {
                 </td>
                 {days.map((day, dayIdx) => {
                   const isToday = dayIdx === todayIndex;
+                  const isLeaveDay = leaveSet.has(dayToYYYYMMDD(day));
                   const dayHeader = formatDayHeader(day);
                   const dayEvents = eventsByDay[dayIdx] || [];
                   const hourEvents =
@@ -100,20 +135,26 @@ function SlotCalendar({ today: todayProp, weekStart, events }) {
                   return (
                     <td
                       key={day.toISOString()}
-                      className={`border border-slate-300 align-top ${isToday ? 'bg-pink-50' : 'bg-white'}`}
+                      className={`border align-top ${
+                        isLeaveDay
+                          ? 'bg-red-50 border-red-200'
+                          : isToday
+                          ? 'bg-emerald-50 border-emerald-200'
+                          : 'bg-white border-slate-300'
+                      }`}
                       style={{ height: ROW_HEIGHT }}
                     >
-                      <div className="relative h-full px-2 py-1">
+                      <div className="relative h-full px-1.5 py-1">
                         <div className="absolute inset-x-1 top-1 bottom-1 rounded-lg bg-slate-50/40" />
                         {hourEvents.map((event, idx) => (
                           <div
                             key={`${event.title}-${idx}`}
-                            className="relative z-10 mx-1 rounded-lg border border-amber-200 bg-indigo-600 px-3 py-2 text-xs text-white shadow-sm"
+                            className="relative z-10 rounded-lg border border-amber-200 bg-indigo-600 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[0.9rem] text-white shadow-sm w-full max-w-full break-words overflow-hidden"
                           >
-                            <div className="text-[11px] font-semibold">
+                            <div className="text-[10px] sm:text-[11px] font-semibold">
                               {event.title}
                             </div>
-                            <div className="mt-0.5 text-[10px] font-medium text-indigo-100">
+                            <div className="mt-0.5 text-[9px] sm:text-[10px] font-medium text-indigo-100">
                               {dayHeader.label} ·{' '}
                               {`${hourLabel(hour)} – ${hourLabel(hour + 1)}`}
                             </div>
@@ -132,6 +173,13 @@ function SlotCalendar({ today: todayProp, weekStart, events }) {
                     </td>
                   );
                 })}
+                {/* Time label on right side */}
+                <td
+                  className="border border-slate-300 bg-slate-50 text-left pl-3 text-[11px] font-medium text-slate-500 align-top"
+                  style={{ height: ROW_HEIGHT }}
+                >
+                  {hourLabel(hour)}
+                </td>
               </tr>
             ))}
           </tbody>

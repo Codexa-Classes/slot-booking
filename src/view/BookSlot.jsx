@@ -1,15 +1,16 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { CalendarIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { useAuth } from '../context/AuthContext';
+import { getSlotsForDate, isSlotAvailable, getLeaves, formatDateDDMMYYYY } from '../firebase/slotsService';
 
-export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
+export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList = [] }) {
   const navigate = useNavigate();
   const { currentUser } = useAuth();
   const [form, setForm] = useState({
     date: '',
+    dateDisplay: '',
     hour: '',
     minute: '00',
     duration: '',
@@ -17,11 +18,22 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
     hr: '',
   });
   const dateRef = useRef(null);
-  const [showMobileCalendar, setShowMobileCalendar] = useState(false);
+  const calendarRef = useRef(null);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [calendarView, setCalendarView] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
   const [errors, setErrors] = useState({});
-  const [availabilityState, setAvailabilityState] = useState('idle'); // 'idle' | 'needs_fields' | 'available'
+  const [availabilityState, setAvailabilityState] = useState('idle'); // 'idle' | 'needs_fields' | 'available' | 'unavailable'
   const [availabilityMessage, setAvailabilityMessage] = useState('');
   const [meetingEndTime, setMeetingEndTime] = useState('');
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [leaveDates, setLeaveDates] = useState([]); // YYYY-MM-DD strings
+
+  useEffect(() => {
+    getLeaves().then((list) => setLeaveDates(list.map((l) => l.date).filter(Boolean)));
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -58,13 +70,48 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
     return hourNum >= 12 ? 'PM' : 'AM';
   };
 
-  // Format date for shortcuts
+  // Format date for shortcuts (internal: YYYY-MM-DD)
   const formatDateForInput = (date) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
+  // YYYY-MM-DD -> DD-MMM-YYYY for display (e.g. 21-Feb-2026)
+  const formatDateForDisplay = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr + 'T00:00:00');
+      if (Number.isNaN(d.getTime())) return dateStr;
+      return formatDateDDMMYYYY(d);
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // DD-MMM-YYYY (e.g. 21-Feb-2026) -> YYYY-MM-DD for storage
+  const parseDDMMYYYY = (str) => {
+    if (!str || typeof str !== 'string') return '';
+    const cleaned = str.trim().replace(/\s/g, '');
+    const match = cleaned.match(/^(\d{1,2})-([a-zA-Z]{3})-(\d{4})$/);
+    if (!match) return '';
+    const [, dayStr, monthStr, yearStr] = match;
+    const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+    const mi = months.indexOf(monthStr.toLowerCase());
+    if (mi < 0) return '';
+    const day = parseInt(dayStr, 10);
+    const year = parseInt(yearStr, 10);
+    if (day < 1 || day > 31) return '';
+    const date = new Date(year, mi, day);
+    if (Number.isNaN(date.getTime())) return '';
+    const yy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+  };
+
+  const formatShortcutDate = (date) => formatDateDDMMYYYY(date);
 
   const handleDateShortcut = (type) => {
     const today = new Date();
@@ -84,13 +131,43 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
     }
 
     if (targetDate) {
-      setForm((f) => ({ ...f, date: formatDateForInput(targetDate) }));
+      const yyyymmdd = formatDateForInput(targetDate);
+      setForm((f) => ({ ...f, date: yyyymmdd, dateDisplay: formatDateForDisplay(yyyymmdd) }));
     }
+  };
+
+  const today = new Date();
+  const dateIn2Days = new Date(today);
+  dateIn2Days.setDate(today.getDate() + 2);
+  const dateIn3Days = new Date(today);
+  dateIn3Days.setDate(today.getDate() + 3);
+
+  // Small calendar popover helpers
+  const getCalendarDays = (year, month) => {
+    const first = new Date(year, month, 1);
+    const last = new Date(year, month + 1, 0);
+    const startPad = first.getDay();
+    const daysInMonth = last.getDate();
+    const cells = [];
+    for (let i = 0; i < startPad; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(year, month, d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  };
+  const isSameDay = (a, b) => a && b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  const isSundayDate = (d) => d && d.getDay() === 0;
+  const isLeaveDayDate = (d) => {
+    if (!d) return false;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return leaveDates.includes(`${y}-${m}-${day}`);
   };
 
   // HR search state for searchable dropdown
   const [hrQuery, setHrQuery] = useState('');
   const [showHrDropdown, setShowHrDropdown] = useState(false);
+  const hrDropdownRef = useRef(null);
   const selectedHR = hrList.find((h) => String(h.id) === String(form.hr));
   const filteredHR = hrList.filter((h) => {
     if (!hrQuery) return true;
@@ -98,7 +175,37 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
     return (h.name || '').toLowerCase().includes(q) || (h.company || '').toLowerCase().includes(q);
   });
 
-  const checkAvailability = () => {
+  // Close HR dropdown when clicking outside
+  useEffect(() => {
+    if (!showHrDropdown) return;
+
+    const handleClickOutside = (event) => {
+      if (hrDropdownRef.current && !hrDropdownRef.current.contains(event.target)) {
+        setShowHrDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showHrDropdown]);
+
+  const isSunday = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.getDay() === 0; // 0 = Sunday
+  };
+
+  const isLeaveDay = (dateStr) => {
+    if (!dateStr) return false;
+    return leaveDates.includes(dateStr);
+  };
+
+  const checkAvailability = async () => {
     const ok = validate(['date', 'hour', 'minute', 'duration']);
     if (!ok) {
       setAvailabilityState('needs_fields');
@@ -108,33 +215,107 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
       return;
     }
 
-    // Compute meeting end time label
-    let endLabel = '';
-    try {
-      const [hh, mm] = String(form.hour || '')
-        .split(':')
-        .map((v) => parseInt(v, 10));
-      const minuteVal = parseInt(form.minute, 10);
-      const dur = parseInt(form.duration, 10);
-      const start = new Date();
-      start.setHours(hh, Number.isNaN(minuteVal) ? 0 : minuteVal, 0, 0);
-      const end = new Date(start.getTime() + (Number.isNaN(dur) ? 0 : dur) * 60000);
-      endLabel = end.toLocaleTimeString(undefined, {
-        hour: 'numeric',
-        minute: '2-digit',
-      });
-    } catch {
-      endLabel = '';
+    if (isSunday(form.date)) {
+      setAvailabilityState('unavailable');
+      setAvailabilityMessage('Slot cannot be booked on Sunday.');
+      return;
+    }
+    if (isLeaveDay(form.date)) {
+      setAvailabilityState('unavailable');
+      setAvailabilityMessage('Slot cannot be booked on admin leave day.');
+      return;
     }
 
-    setMeetingEndTime(endLabel);
-    setAvailabilityState('available');
+    setCheckingAvailability(true);
+    setAvailabilityState('idle');
     setAvailabilityMessage('');
+
+    try {
+      const existingSlots = await getSlotsForDate(form.date);
+      const available = isSlotAvailable(
+        existingSlots,
+        form.hour,
+        form.minute,
+        form.duration,
+      );
+
+      if (!available) {
+        setMeetingEndTime('');
+        setAvailabilityState('unavailable');
+        setAvailabilityMessage('This slot is not available.');
+        setCheckingAvailability(false);
+        return;
+      }
+
+      // Compute meeting end time label
+      let endLabel = '';
+      try {
+        const [hh, mm] = String(form.hour || '')
+          .split(':')
+          .map((v) => parseInt(v, 10));
+        const minuteVal = parseInt(form.minute, 10);
+        const dur = parseInt(form.duration, 10);
+        const start = new Date();
+        start.setHours(hh, Number.isNaN(minuteVal) ? 0 : minuteVal, 0, 0);
+        const end = new Date(start.getTime() + (Number.isNaN(dur) ? 0 : dur) * 60000);
+        endLabel = end.toLocaleTimeString(undefined, {
+          hour: 'numeric',
+          minute: '2-digit',
+        });
+      } catch {
+        endLabel = '';
+      }
+
+      setMeetingEndTime(endLabel);
+      setAvailabilityState('available');
+      setAvailabilityMessage('');
+    } catch (err) {
+      console.error('Availability check failed:', err);
+      setAvailabilityState('unavailable');
+      setAvailabilityMessage('Could not check availability. Please try again.');
+    } finally {
+      setCheckingAvailability(false);
+    }
   };
 
   const bookSlot = async () => {
     const ok = validate(['date', 'hour', 'minute', 'duration', 'round', 'hr']);
     if (!ok) return;
+
+    if (isSunday(form.date)) {
+      setAvailabilityState('unavailable');
+      setAvailabilityMessage('Slot cannot be booked on Sunday.');
+      alert('Slot cannot be booked on Sunday. Please choose a different day.');
+      return;
+    }
+    if (isLeaveDay(form.date)) {
+      setAvailabilityState('unavailable');
+      setAvailabilityMessage('Slot cannot be booked on admin leave day.');
+      alert('Slot cannot be booked on admin leave day. Please choose a different day.');
+      return;
+    }
+
+    // Re-check availability right before saving to prevent double-booking
+    try {
+      const existingSlots = await getSlotsForDate(form.date);
+      const available = isSlotAvailable(
+        existingSlots,
+        form.hour,
+        form.minute,
+        form.duration,
+      );
+      if (!available) {
+        setAvailabilityState('unavailable');
+        setAvailabilityMessage('This slot is not available.');
+        alert('This slot has already been booked. Please choose a different time.');
+        return;
+      }
+    } catch (err) {
+      console.error('Availability re-check failed:', err);
+      alert('Could not verify slot availability. Please try again.');
+      return;
+    }
+
     // Determine candidate identity from auth or local session
     let candidateId = currentUser?.uid || '';
     let candidateName = 'Candidate';
@@ -159,29 +340,39 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
     }
 
     const hr = selectedHR || {};
-    const companyName = hr.company || '';
+    const company = hr.company || '';
     const technology = hr.technology || '';
     const hrName = hr.name || '';
-    const time =
-      form.hour && form.minute ? `${form.hour}:${form.minute}` : '';
+    const hrEmail = hr.email || '';
+    const hrMobile = hr.mobile || '';
+    const startHour = parseInt(form.hour, 10) || 0;
+    const startMinute = parseInt(form.minute, 10) || 0;
+    const duration = parseInt(form.duration, 10) || 30;
+    // Store date as Firestore Timestamp so admin dashboard and slotsService display it correctly
+    const slotDate = form.date ? new Date(form.date + 'T00:00:00') : new Date();
+    const dateTimestamp = Timestamp.fromDate(slotDate);
 
     const payload = {
       candidateId,
       candidateName,
-      companyName,
+      company,
       technology,
       round: form.round,
-      date: form.date,
-      time,
-      duration: form.duration,
+      date: dateTimestamp,
+      startHour,
+      startMinute,
+      duration,
       hrName,
+      hrEmail,
+      hrMobile,
       status: 'pending',
       createdAt: serverTimestamp(),
     };
 
     try {
       await addDoc(collection(db, 'slots'), payload);
-      navigate('/candidate-dashboard?view=slots');
+      onBookSuccess?.();
+      navigate('/candidate-dashboard?view=slots', { replace: true });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to book slot:', err);
@@ -223,54 +414,167 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
 
   return (
     <div className="w-full">
-      {/* full-page width wrapper with comfortable side padding */}
-      <div className="w-full px-6 lg:px-12 mt-8">
-        <div className="relative bg-white rounded-lg border border-gray-100 shadow-lg px-6 py-6 md:px-10 md:py-8 w-full">
+      {/* Card same width as My Slots list */}
+      <div className="bg-white rounded-lg sm:rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6 w-full">
           <div className="flex items-center mb-6">
             <button
               type="button"
               onClick={handleClose}
-              className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-700 mr-4"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
             >
-              ‹
+              <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
             </button>
             <h2 className="mx-auto text-purple-600 font-semibold text-sm md:text-base">Book Slot</h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-stretch">
             {/* COLUMN 1 (Left) */}
             <div className="flex flex-col gap-3">
               {/* Date field */}
               <div>
-                <label className="block text-xs font-medium text-gray-600">* Date</label>
-                <div className="mt-1">
-                  {/* Desktop: input with calendar icon inside */}
+                <label className="block text-xs font-medium text-gray-600">
+                  <span className="text-red-500">*</span> Date
+                </label>
+                <div className="mt-1 relative">
+                  {/* Desktop: text input DD-MMM-YYYY format */}
                   <div className="hidden sm:block relative w-full">
                     <input
                       ref={dateRef}
-                      type="date"
+                      type="text"
                       name="date"
-                      value={form.date}
-                      onChange={handleChange}
+                      placeholder="DD-MMM-YYYY"
+                      value={form.dateDisplay !== undefined ? form.dateDisplay : formatDateForDisplay(form.date)}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        const parsed = parseDDMMYYYY(raw);
+                        if (parsed) {
+                          setForm((f) => ({ ...f, date: parsed, dateDisplay: formatDateForDisplay(parsed) }));
+                        } else if (raw === '') {
+                          setForm((f) => ({ ...f, date: '', dateDisplay: '' }));
+                        } else {
+                          setForm((f) => ({ ...f, date: '', dateDisplay: raw }));
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const raw = e.target.value.trim();
+                        const parsed = parseDDMMYYYY(raw);
+                        if (parsed) {
+                          setForm((f) => ({ ...f, date: parsed, dateDisplay: formatDateForDisplay(parsed) }));
+                        } else if (raw === '') {
+                          setForm((f) => ({ ...f, date: '', dateDisplay: '' }));
+                        }
+                      }}
                       className="w-full border border-gray-200 rounded-md pl-3 pr-10 py-2 text-sm h-9 placeholder-gray-400"
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                      <CalendarIcon className="w-4 h-4" />
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                      if (!showCalendar && form.date) {
+                        const d = new Date(form.date + 'T12:00:00');
+                        setCalendarView({ year: d.getFullYear(), month: d.getMonth() });
+                      }
+                      setShowCalendar((v) => !v);
+                    }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer bg-transparent border-0"
+                      aria-label="Open calendar"
+                    >
+                      <i className="fa-solid fa-calendar text-sm" aria-hidden="true" />
+                    </button>
                   </div>
                   {/* Mobile: tap-to-open with icon */}
                   <div className="sm:hidden relative w-full">
                     <button
                       type="button"
                       className="w-full text-left border border-gray-200 rounded-md pl-3 pr-10 py-2 text-sm h-9 bg-white"
-                      onClick={() => setShowMobileCalendar(true)}
+                      onClick={() => {
+                      if (!showCalendar && form.date) {
+                        const d = new Date(form.date + 'T12:00:00');
+                        setCalendarView({ year: d.getFullYear(), month: d.getMonth() });
+                      }
+                      setShowCalendar((v) => !v);
+                    }}
                     >
-                      {form.date ? new Date(form.date).toLocaleDateString() : 'mm/dd/yyyy'}
+                      {form.date ? formatDateForDisplay(form.date) : 'DD-MMM-YYYY'}
                     </button>
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                      <CalendarIcon className="w-4 h-4" />
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                      if (!showCalendar && form.date) {
+                        const d = new Date(form.date + 'T12:00:00');
+                        setCalendarView({ year: d.getFullYear(), month: d.getMonth() });
+                      }
+                      setShowCalendar((v) => !v);
+                    }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 cursor-pointer bg-transparent border-0"
+                      aria-label="Open calendar"
+                    >
+                      <i className="fa-solid fa-calendar text-sm" aria-hidden="true" />
+                    </button>
                   </div>
+                  {/* Small calendar popover - positioned below input */}
+                  {showCalendar && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      aria-hidden="true"
+                      onClick={() => setShowCalendar(false)}
+                    />
+                    <div
+                      ref={calendarRef}
+                      className="absolute left-0 top-full mt-1 z-50 w-64 bg-white border border-gray-200 rounded-lg shadow-lg p-3"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <button
+                          type="button"
+                          onClick={() => setCalendarView((v) => ({ ...v, month: v.month - 1 < 0 ? 11 : v.month - 1, year: v.month - 1 < 0 ? v.year - 1 : v.year }))}
+                          className="p-1 rounded hover:bg-gray-100 text-gray-600"
+                        >
+                          <i className="fa-solid fa-chevron-left text-xs" aria-hidden="true" />
+                        </button>
+                        <span className="text-sm font-medium">
+                          {new Date(calendarView.year, calendarView.month).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setCalendarView((v) => ({ ...v, month: v.month + 1 > 11 ? 0 : v.month + 1, year: v.month + 1 > 11 ? v.year + 1 : v.year }))}
+                          className="p-1 rounded hover:bg-gray-100 text-gray-600"
+                        >
+                          <i className="fa-solid fa-chevron-right text-xs" aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-7 gap-0.5 text-center text-xs">
+                        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d) => (
+                          <div key={d} className="py-1 text-gray-500 font-medium">{d}</div>
+                        ))}
+                        {getCalendarDays(calendarView.year, calendarView.month).map((day, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            disabled={!day || isSundayDate(day) || isLeaveDayDate(day)}
+                            onClick={() => {
+                              if (day && !isSundayDate(day) && !isLeaveDayDate(day)) {
+                                const yyyymmdd = formatDateForInput(day);
+                                setForm((f) => ({ ...f, date: yyyymmdd, dateDisplay: formatDateForDisplay(yyyymmdd) }));
+                                setShowCalendar(false);
+                              }
+                            }}
+                            className={`py-1.5 rounded text-sm ${
+                              !day
+                                ? 'invisible'
+                                : isSundayDate(day) || isLeaveDayDate(day)
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : isSameDay(day, form.date ? new Date(form.date + 'T12:00:00') : null)
+                                ? 'bg-purple-600 text-white'
+                                : 'hover:bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            {day ? day.getDate() : ''}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                  )}
                 </div>
                 {/* Quick date links - now clickable */}
                 <div className="mt-2 text-xs text-purple-600 flex gap-3">
@@ -293,14 +597,14 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                     onClick={() => handleDateShortcut('next2')}
                     className="text-purple-600 hover:text-purple-800 cursor-pointer"
                   >
-                    In 2 days
+                    {formatShortcutDate(dateIn2Days)}
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDateShortcut('next3')}
                     className="text-purple-600 hover:text-purple-800 cursor-pointer"
                   >
-                    In 3 days
+                    {formatShortcutDate(dateIn3Days)}
                   </button>
                 </div>
               </div>
@@ -308,33 +612,41 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
               {/* Round dropdown - visible only after availability confirmed */}
               {availabilityState === 'available' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600">* Round</label>
+                  <label className="block text-xs font-medium text-gray-600">
+                    <span className="text-red-500">*</span> Round
+                  </label>
                   <select
                     name="round"
                     value={form.round}
                     onChange={handleChange}
-                    className="mt-1 md:w-56 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                    className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9 bg-white"
                   >
                     <option value="">Select Round</option>
-                    <option>Round 1</option>
-                    <option>Round 2</option>
+                    <option>Technical Round 1</option>
+                    <option>Technical Round 2</option>
+                    <option>Technical Round 3</option>
+                    <option>Manageral Round</option>
+                    <option>HR Round</option>
+                    <option>Task Assesment</option>
                   </select>
                   {errors.round && <p className="text-xs text-red-500 mt-1">{errors.round}</p>}
                 </div>
               )}
             </div>
 
-            {/* COLUMN 2 (Middle) */}
-            <div className="flex flex-col gap-3">
+            {/* COLUMN 2 (Middle) - Start Time stretches full column */}
+            <div className="flex flex-col gap-3 min-w-0">
               {/* Start Time */}
-              <div>
-                <label className="block text-xs font-medium text-gray-600">* Start Time</label>
-                <div className="mt-1 flex gap-2 items-center">
+              <div className="w-full min-w-0">
+                <label className="block text-xs font-medium text-gray-600">
+                  <span className="text-red-500">*</span> Start Time
+                </label>
+                <div className="mt-1 flex gap-2 items-center w-full">
                   <select
                     name="hour"
                     value={form.hour}
                     onChange={handleChange}
-                    className="w-20 border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                    className="flex-1 min-w-0 border border-gray-200 rounded-md px-3 py-2 text-sm h-9 bg-white"
                   >
                     <option value="">Hour</option>
                     {Array.from({ length: 9 }).map((_, i) => {
@@ -352,7 +664,7 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                     name="minute"
                     value={form.minute}
                     onChange={handleChange}
-                    className="w-20 border border-gray-200 rounded-md px-3 py-2 text-sm h-9"
+                    className="flex-1 min-w-0 border border-gray-200 rounded-md px-3 py-2 text-sm h-9 bg-white"
                   >
                     <option value="00">00</option>
                     <option value="15">15</option>
@@ -361,7 +673,7 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                   </select>
 
                   {/* AM/PM indicator box (dynamic) */}
-                  <div className="w-12 h-9 border border-gray-200 rounded-md flex items-center justify-center text-sm text-gray-500 bg-gray-50">
+                  <div className="flex-shrink-0 w-12 h-9 border border-gray-200 rounded-md flex items-center justify-center text-sm text-gray-500 bg-gray-50">
                     {getAmPm()}
                   </div>
                 </div>
@@ -374,9 +686,11 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
               {/* Select HR + Add New HR (same row) - visible only after availability confirmed */}
               {availabilityState === 'available' && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-600">* Select HR</label>
+                  <label className="block text-xs font-medium text-gray-600">
+                    <span className="text-red-500">*</span> Select HR
+                  </label>
                   <div className="mt-1 flex items-center gap-3">
-                    <div className="relative flex-1 min-w-0">
+                    <div className="relative flex-1 min-w-0" ref={hrDropdownRef}>
                       <input
                         type="text"
                         name="hr_search"
@@ -444,37 +758,39 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
               )}
             </div>
 
-            {/* COLUMN 3 (Right) - Meeting Duration + Check Availability same row, then Book My Slot */}
-            <div className="flex flex-col gap-3 h-full">
-              {/* Meeting Duration (left) + Check Availability (right) - same row as in screenshot */}
-              <div className="flex items-end justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <label className="block text-xs font-medium text-gray-600">* Meeting Duration</label>
-                  <select name="duration" value={form.duration} onChange={handleChange} className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9">
-                    <option value="">Select Duration</option>
-                    <option value="15">15 Minutes</option>
-                    <option value="30">30 Minutes</option>
-                    <option value="60">1 Hour</option>
-                    <option value="120">2 Hours</option>
-                    <option value="180">3 Hours</option>
-                    <option value="240">4 Hours</option>
-                  </select>
-                  {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
-                </div>
-                {form.date && (
-                  <button
-                    type="button"
-                    onClick={checkAvailability}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-yellow-200 hover:bg-yellow-300 text-sm h-9 flex-shrink-0"
-                  >
-                    Check Availability
-                  </button>
-                )}
+            {/* COLUMN 3 - Meeting Duration */}
+            <div className="flex flex-col gap-3">
+              {/* Meeting Duration */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600">
+                  <span className="text-red-500">*</span> Meeting Duration
+                </label>
+                <select
+                  name="duration"
+                  value={form.duration}
+                  onChange={handleChange}
+                  className="mt-1 w-full border border-gray-200 rounded-md px-3 py-2 text-sm h-9 bg-white"
+                >
+                  <option value="">Select Duration</option>
+                  <option value="15">15 Minutes</option>
+                  <option value="30">30 Minutes</option>
+                  <option value="60">1 Hour</option>
+                  <option value="120">2 Hours</option>
+                  <option value="180">3 Hours</option>
+                  <option value="240">4 Hours</option>
+                </select>
+                {errors.duration && <p className="text-xs text-red-500 mt-1">{errors.duration}</p>}
               </div>
 
               {availabilityState === 'needs_fields' && (
                 <p className="text-xs text-red-500 text-center">
                   {availabilityMessage || 'Please select date, start time, and meeting duration.'}
+                </p>
+              )}
+
+              {availabilityState === 'unavailable' && (
+                <p className="text-xs text-red-600 font-semibold text-center">
+                  {availabilityMessage || 'This slot is not available.'}
                 </p>
               )}
 
@@ -490,18 +806,28 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
                   </p>
                 </div>
               )}
+            </div>
 
-              {/* Book button bottom-right */}
+            {/* COLUMN 4 - Check Availability + Book My Slot at corner */}
+            <div className="flex flex-col gap-3 h-full">
+              {form.date && (
+                <button
+                  type="button"
+                  onClick={checkAvailability}
+                  disabled={checkingAvailability}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-md bg-yellow-200 hover:bg-yellow-300 text-sm h-9 w-full disabled:opacity-70 disabled:cursor-not-allowed mt-6"
+                >
+                  {checkingAvailability ? 'Checking…' : 'Check Availability'}
+                </button>
+              )}
               {availabilityState === 'available' && (
-                <div className="mt-auto flex justify-end">
-                  <button
-                    type="button"
-                    onClick={bookSlot}
-                    className="inline-flex items-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9 md:w-36 justify-center"
-                  >
-                    Book My Slot
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={bookSlot}
+                  className="mt-auto inline-flex items-center justify-center gap-2 px-3 py-2 rounded bg-emerald-400 hover:bg-emerald-500 text-white font-semibold h-9 w-full"
+                >
+                  Book My Slot
+                </button>
               )}
             </div>
           </div>
@@ -509,44 +835,8 @@ export default function BookSlot({ onClose, onOpenAddHR, hrList = [] }) {
           {/* (removed duplicate mobile book button - layout now uses the grid above) */}
 
           {/* Desktop corner buttons removed to avoid duplicates; using in-grid controls instead */}
-
-          {/* Mobile full-screen calendar modal (kept inside card wrapper) */}
-          {showMobileCalendar && (
-            <div className="fixed inset-0 z-50 bg-white">
-              <div className="h-full flex flex-col">
-                <div className="p-4 border-b flex items-center justify-between">
-                  <h3 className="text-sm font-semibold">Select date</h3>
-                  <button
-                    onClick={() => setShowMobileCalendar(false)}
-                    className="px-3 py-1 rounded bg-gray-100"
-                  >
-                    Close
-                  </button>
-                </div>
-                <div className="flex-1 p-6 flex items-center justify-center">
-                  <input
-                    type="date"
-                    className="w-full max-w-md border border-gray-200 rounded-md p-3 text-lg"
-                    value={form.date}
-                    onChange={(e) => {
-                      handleChange(e);
-                    }}
-                  />
-                </div>
-                <div className="p-4 border-t">
-                  <button
-                    onClick={() => setShowMobileCalendar(false)}
-                    className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-purple-600 text-white"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
-    </div>
   );
 }
 

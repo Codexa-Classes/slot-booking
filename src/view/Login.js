@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid';
 import { useNavigate } from "react-router-dom";
 
 const ADMIN_MOBILE = '9999999999';
@@ -85,9 +84,9 @@ export default function Login() {
               className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 focus:outline-none"
             >
               {passwordVisible ? (
-                <EyeSlashIcon className="w-5 h-5" />
+                <i className="fa-solid fa-eye-slash w-5 h-5" aria-hidden="true" />
               ) : (
-                <EyeIcon className="w-5 h-5" />
+                <i className="fa-solid fa-eye w-5 h-5" aria-hidden="true" />
               )}
             </button>
           </div>

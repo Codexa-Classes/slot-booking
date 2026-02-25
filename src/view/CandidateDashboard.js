@@ -1,5 +1,4 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { CalendarIcon, CloudArrowDownIcon, ArrowLeftIcon } from '@heroicons/react/24/solid';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   collection,
@@ -17,11 +16,109 @@ import AddHRModal from '../Components/AddHRModal';
 import BookSlot from './BookSlot';
 import WeekCalendar from '../Components/WeekCalendar';
 import { db } from '../firebase/firebase';
+import { formatDateDDMMYYYY } from '../firebase/slotsService';
 import { formatDayHeader } from '../calendar';
 import { useAuth } from '../context/AuthContext';
 
 // Placeholder events for future dynamic data (no fixed dates)
 const MOCK_EVENTS = [];
+
+// Reusable pagination bar: left = count label, right = « < pages > » + per-page selector
+function PaginationBar({
+  totalItems,
+  currentPage,
+  itemsPerPage,
+  onPageChange,
+  onItemsPerPageChange,
+  label = 'Items',
+  optionsPerPage = [10, 20, 25, 50],
+}) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+
+  const pageNumbers = [];
+  const maxVisible = 5;
+  let first = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+  let last = Math.min(totalPages, first + maxVisible - 1);
+  if (last - first + 1 < maxVisible) {
+    first = Math.max(1, last - maxVisible + 1);
+  }
+  for (let i = first; i <= last; i++) {
+    pageNumbers.push(i);
+  }
+
+  return (
+    <div className="mt-3 flex items-center justify-between gap-3 flex-wrap px-3 py-2">
+      {/* Left: count */}
+      <div className="text-xs sm:text-sm text-slate-600">
+        {totalItems} {label}
+      </div>
+      {/* Right: « < 1 2 3 ... > » + per page */}
+      <div className="flex items-center gap-1 sm:gap-2">
+        <button
+          type="button"
+          onClick={() => onPageChange(1)}
+          disabled={currentPage <= 1}
+          className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          aria-label="First page"
+        >
+          &laquo;
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage <= 1}
+          className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          aria-label="Previous page"
+        >
+          &lsaquo;
+        </button>
+        {pageNumbers.map((num) => (
+          <button
+            key={num}
+            type="button"
+            onClick={() => onPageChange(num)}
+            className={`min-w-[28px] px-2 py-1 rounded text-sm font-medium ${
+              num === currentPage
+                ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {num}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage >= totalPages}
+          className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          aria-label="Next page"
+        >
+          &rsaquo;
+        </button>
+        <button
+          type="button"
+          onClick={() => onPageChange(totalPages)}
+          disabled={currentPage >= totalPages}
+          className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+          aria-label="Last page"
+        >
+          &raquo;
+        </button>
+        <select
+          value={itemsPerPage}
+          onChange={(e) => onItemsPerPageChange(Number(e.target.value))}
+          className="ml-2 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs sm:text-sm text-slate-600"
+        >
+          {optionsPerPage.map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
 
 function getInitials(name) {
   const cleaned = String(name || '').trim();
@@ -32,127 +129,256 @@ function getInitials(name) {
   return (first + last).toUpperCase() || 'C';
 }
 
-// Header Component
-function Header({ userName, onLogout }) {
+// Header Component with mobile sidebar nav (like Admin)
+function Header({ userName, onLogout, activeNav, onChangeNav }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const initials = useMemo(() => getInitials(userName), [userName]);
 
+  const navItems = [
+    { id: 'home', label: 'Home', icon: 'fa-solid fa-house' },
+    { id: 'slots', label: 'Slots', icon: 'fa-solid fa-calendar-days' },
+    { id: 'hrs', label: 'HRs', icon: 'fa-solid fa-user-group' },
+  ];
+
+  const handleNavClick = (id) => {
+    if (typeof onChangeNav === 'function') {
+      onChangeNav(id);
+    }
+    setNavOpen(false);
+  };
+
   return (
-    <div className="bg-pink-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3">
-      {/* Left Section */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        <div className="w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-lg sm:text-xl md:text-2xl font-bold text-white">V</span>
+    <>
+      <div className="bg-pink-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3 relative">
+        {/* Left Section: hamburger + title */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={() => setNavOpen((open) => !open)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-slate-700 hover:bg-pink-200 shadow-sm md:hidden"
+            aria-label="Toggle navigation"
+          >
+            <i className="fa-solid fa-bars w-4 h-4" aria-hidden="true" />
+          </button>
+          <h1 className="text-sm sm:text-base md:text-xl font-bold text-gray-900 truncate">
+            Slot Booking
+          </h1>
         </div>
-        <h1 className="text-sm sm:text-base md:text-xl font-bold text-gray-900 truncate">Slot Booking</h1>
-      </div>
 
-      {/* Center Section - Hidden on mobile */}
-      <div className="hidden md:block absolute left-1/2 transform -translate-x-1/2">
-        <p className="text-sm text-gray-600">virajkadam.in</p>
-      </div>
+        {/* Center Section - domain (hidden on small screens) */}
+        <div className="hidden md:block absolute left-1/2 transform -translate-x-1/2">
+          <p className="text-sm text-gray-600">virajkadam.in</p>
+        </div>
 
-      {/* Right Section */}
-      <div className="relative flex items-center gap-2 sm:gap-3 md:gap-4 ml-auto">
-        <button
-          type="button"
-          onClick={() => setMenuOpen((v) => !v)}
-          className="flex items-center gap-2 focus:outline-none"
-        >
-          <div className="text-right hidden sm:block">
-            <p className="font-semibold text-xs sm:text-sm md:text-base text-gray-900 truncate">
-              {userName || 'Candidate'}
-            </p>
-            <p className="text-[10px] sm:text-xs text-gray-500">Candidate</p>
-          </div>
-          <div className="w-8 sm:w-9 md:w-10 h-8 sm:h-9 md:h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
-            <span className="text-xs sm:text-sm md:text-base font-semibold text-white">
-              {initials}
-            </span>
-          </div>
-        </button>
-
-        {menuOpen && (
-          <div className="absolute right-0 top-10 w-40 rounded-xl bg-white shadow-lg border border-slate-100 z-50 overflow-hidden">
-            <div className="px-4 py-3">
-              <p className="text-sm font-semibold text-slate-900">
+        {/* Right Section: user info */}
+        <div className="relative flex items-center gap-2 sm:gap-3 md:gap-4 ml-auto">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            className="flex items-center gap-2 focus:outline-none"
+          >
+            <div className="text-right hidden sm:block">
+              <p className="font-semibold text-xs sm:text-sm md:text-base text-gray-900 truncate">
                 {userName || 'Candidate'}
               </p>
-              <p className="text-[11px] text-slate-500">Candidate</p>
+              <p className="text-[10px] sm:text-xs text-gray-500">Candidate</p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                onLogout?.();
-              }}
-              className="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2"
-            >
-              Log Out
-            </button>
-          </div>
-        )}
+            <div className="w-8 sm:w-9 md:w-10 h-8 sm:h-9 md:h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs sm:text-sm md:text-base font-semibold text-white">
+                {initials}
+              </span>
+            </div>
+          </button>
+
+          {menuOpen && (
+            <div className="absolute right-0 top-10 w-40 rounded-xl bg-white shadow-lg border border-slate-100 z-50 overflow-hidden">
+              <div className="px-4 py-3">
+                <p className="text-sm font-semibold text-slate-900">
+                  {userName || 'Candidate'}
+                </p>
+                <p className="text-[11px] text-slate-500">Candidate</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLogout?.();
+                }}
+                className="w-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2"
+              >
+                Log Out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+
+      {/* Mobile sidebar navigation */}
+      {navOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setNavOpen(false)}
+            aria-label="Close navigation overlay"
+          />
+          <div className="relative h-full w-64 max-w-[80%] bg-slate-900 text-white shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+              <span className="text-sm font-semibold">Menu</span>
+              <button
+                type="button"
+                onClick={() => setNavOpen(false)}
+                className="p-1.5 rounded hover:bg-slate-800"
+                aria-label="Close menu"
+              >
+                <i className="fa-solid fa-xmark w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+            <nav className="flex flex-col gap-1 px-2 py-3">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleNavClick(item.id)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-left ${
+                    activeNav === item.id
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <i className={`${item.icon} w-4 h-4`} aria-hidden="true" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
 // Candidate calendar area: uses WeekCalendar; header shows current system date only
 function CandidateCalendarArea({ onOpenAddHR, onOpenBookSlot }) {
   const headerDate = new Date();
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
 
-  const dayHeader = formatDayHeader(headerDate);
-  const todayFormatted = `${dayHeader.weekday.slice(0, 3)}, ${headerDate.getDate()} ${dayHeader.label.split(', ')[1]} ${headerDate.getFullYear()}`;
+  const candidateTodayLabel = headerDate.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 
   return (
     <div className="bg-white rounded-lg sm:rounded-2xl shadow-md overflow-hidden border border-slate-200">
       {/* Title + candidate actions (Download, Add HR, Book Slot) */}
       <div className="border-b border-slate-200 p-3 sm:p-4 md:p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 relative">
-          {/* Left: Calendar icon + Today's date */}
-          <div className="flex items-center gap-2">
-            <CalendarIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600 flex-shrink-0" />
-            <span className="text-xs sm:text-sm text-gray-700 font-medium">
-              Today: {todayFormatted}
-            </span>
+        {/* Mobile: centered, stacked layout like admin */}
+        <div className="flex flex-col items-center gap-2 mb-4 sm:hidden text-center">
+          {/* Today's date */}
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-700">
+            <span className="font-medium">Today {candidateTodayLabel}</span>
           </div>
-
-          {/* Center: Title (centered) */}
-          <div className="absolute left-1/2 transform -translate-x-1/2">
-            <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-purple-600 whitespace-nowrap">
-              Slot Booking Calendar
+          {/* Title + reload */}
+          <div className="flex items-center justify-center gap-2">
+            {/* Mobile heading without 'Calendar' */}
+            <h2 className="text-sm font-semibold text-purple-600">
+              Slot Booking
             </h2>
+            <button
+              type="button"
+              onClick={() => setCalendarRefreshKey((k) => k + 1)}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 flex-shrink-0"
+              aria-label="Reload calendar"
+            >
+              <i className="fa-solid fa-rotate-right text-xs" aria-hidden="true" />
+            </button>
           </div>
-
-          {/* Right: Action buttons */}
-          <div className="flex flex-wrap gap-2 sm:gap-3 ml-auto">
+          {/* Download + actions stacked */}
+          <div className="w-full flex flex-col items-center gap-2">
             <a
               href="/interview_process_candidate_details.pdf"
               download="Personal_Detail_Form.pdf"
-              className="bg-blue-500 hover:bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1 inline-flex"
+              className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 text-xs font-semibold shadow"
             >
-              <CloudArrowDownIcon className="w-3 h-3 sm:w-4 sm:h-4" />
-              <span className="hidden sm:inline">Download Personal Detail Form</span>
-              <span className="sm:hidden">Download</span>
+              <i className="fa-solid fa-cloud-arrow-down w-3 h-3" aria-hidden="true" />
+              <span>Download Personal Detail Form</span>
             </a>
-            <button
-              type="button"
-              onClick={onOpenAddHR}
-              className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap"
-            >
-              + Add New HR
-            </button>
-            <button
-              type="button"
-              onClick={onOpenBookSlot}
-              className="bg-green-500 hover:bg-green-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap"
-            >
-              + Book New Slot
-            </button>
+            <div className="flex w-full max-w-xs gap-2">
+              <button
+                type="button"
+                onClick={onOpenAddHR}
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white px-2 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+              >
+                + Add New HR
+              </button>
+              <button
+                type="button"
+                onClick={onOpenBookSlot}
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white px-2 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+              >
+                + Book New Slot
+              </button>
+            </div>
           </div>
         </div>
 
-        <WeekCalendar />
+        {/* Desktop / tablet layout (unchanged) */}
+        <div className="hidden sm:block">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 relative">
+            {/* Left: Today's date */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs sm:text-sm text-gray-700 font-medium">
+                Today {candidateTodayLabel}
+              </span>
+            </div>
+
+            {/* Center: Title + reload */}
+            <div className="absolute left-1/2 transform -translate-x-1/2 flex items-center gap-2">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold text-purple-600 whitespace-nowrap">
+                Slot Booking
+              </h2>
+              <button
+                type="button"
+                onClick={() => setCalendarRefreshKey((k) => k + 1)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 flex-shrink-0"
+                aria-label="Reload calendar"
+              >
+                <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
+              </button>
+            </div>
+
+            {/* Right: Action buttons */}
+            <div className="flex flex-wrap gap-2 sm:gap-3 ml-auto">
+              <a
+                href="/interview_process_candidate_details.pdf"
+                download="Personal_Detail_Form.pdf"
+                className="bg-blue-500 hover:bg-blue-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1 inline-flex"
+              >
+                <i className="fa-solid fa-cloud-arrow-down w-3 h-3 sm:w-4 sm:h-4" aria-hidden="true" />
+                <span className="hidden sm:inline">Download Personal Detail Form</span>
+                <span className="sm:hidden">Download</span>
+              </a>
+              <button
+                type="button"
+                onClick={onOpenAddHR}
+                className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap"
+              >
+                + Add New HR
+              </button>
+              <button
+                type="button"
+                onClick={onOpenBookSlot}
+                className="bg-green-500 hover:bg-green-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap"
+              >
+                + Book New Slot
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <WeekCalendar key={calendarRefreshKey} />
       </div>
     </div>
   );
@@ -163,6 +389,7 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
   const { currentUser } = useAuth();
   const [slots, setSlots] = useState([]);
   const [slotSearch, setSlotSearch] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let storedId = '';
@@ -189,26 +416,59 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
           ...data,
         };
       });
+
+      // Sort so newest slots (by createdAt) appear at the top
+      items.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return bTime - aTime;
+      });
+
       setSlots(items);
     });
     return () => unsub();
-  }, [currentUser]);
+  }, [currentUser, refreshKey]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const totalSlots = slots.length;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  const ROUND_LABELS = [
+    'Technical Round 1',
+    'Technical Round 2',
+    'Technical Round 3',
+    'Manageral Round',
+    'HR Round',
+    'Task Assesment',
+  ];
+
+  const roundCounts = useMemo(() => {
+    const counts = {};
+    slots.forEach((slot) => {
+      const round = String(slot.round || '').trim();
+      if (!round) return;
+      counts[round] = (counts[round] || 0) + 1;
+    });
+    return counts;
+  }, [slots]);
 
   const filteredSlots = useMemo(() => {
     if (!slotSearch.trim()) return slots;
     const q = slotSearch.toLowerCase();
     return slots.filter((slot) => {
       return (
-        String(slot.companyName || '').toLowerCase().includes(q) ||
+        String(slot.company || slot.companyName || '').toLowerCase().includes(q) ||
         String(slot.technology || '').toLowerCase().includes(q)
       );
     });
   }, [slots, slotSearch]);
 
-  const formatTimeLabel = (timeStr, durationStr) => {
+  const formatTimeLabel = (slot) => {
+    const timeStr = slot.time || (slot.startHour != null && slot.startMinute != null
+      ? `${String(slot.startHour).padStart(2, '0')}:${String(slot.startMinute).padStart(2, '0')}`
+      : '');
+    const durationStr = slot.duration || '';
     if (!timeStr) return '';
     const [hh, mm] = timeStr.split(':').map((v) => parseInt(v, 10));
     if (Number.isNaN(hh) || Number.isNaN(mm)) return timeStr;
@@ -239,6 +499,10 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
     }
   };
 
+  const totalItems = filteredSlots.length;
+  const startIdx = (currentPage - 1) * itemsPerPage;
+  const paginatedSlots = filteredSlots.slice(startIdx, startIdx + itemsPerPage);
+
   return (
     <div className="bg-white rounded-lg sm:rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6">
       {/* Header: back button left, title centered, Book New Slot button right */}
@@ -248,17 +512,25 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
           <button
             type="button"
             onClick={onBackToHome}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            <ArrowLeftIcon className="w-4 h-4" />
+            <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Center: title */}
-        <div className="flex-1 text-center">
+        {/* Center: title + reload button */}
+        <div className="flex-1 flex items-center justify-center gap-2">
           <h2 className="text-sm sm:text-base font-semibold text-purple-600">
             My Slots
           </h2>
+          <button
+            type="button"
+            onClick={() => setRefreshKey((k) => k + 1)}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+            aria-label="Reload slots"
+          >
+            <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
+          </button>
         </div>
 
         {/* Right: Book New Slot button */}
@@ -276,13 +548,26 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
 
       {/* Metrics + search row */}
       <div className="mb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-6 text-xs sm:text-sm text-slate-700">
+        <div className="flex flex-wrap items-center gap-6 text-xs sm:text-sm text-slate-700">
+          {/* Total slots card */}
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
               {totalSlots}
             </span>
             <span className="text-[11px] text-slate-500">Total Slots</span>
           </div>
+
+          {/* Per-round cards, same style as total */}
+          {ROUND_LABELS.map((label) => (
+            <div key={label} className="flex flex-col items-center">
+              <span className="text-sm sm:text-base font-semibold text-slate-800">
+                {roundCounts[label] || 0}
+              </span>
+              <span className="text-[11px] text-slate-500 text-center whitespace-nowrap">
+                {label}
+              </span>
+            </div>
+          ))}
         </div>
         <div className="flex items-center justify-end gap-3">
           <div className="relative w-32 sm:w-40">
@@ -304,83 +589,120 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-xs sm:text-sm">
+          <table className="min-w-full border-collapse text-xs sm:text-sm border border-slate-200">
             <thead>
               <tr className="bg-slate-50 text-slate-600">
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
-                  Sr.No
+                <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200 w-10">
+                  Sr.
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Company Name
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Technology
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
+                  HR
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Round
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Date
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Time
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Feedback
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody>
-              {filteredSlots.map((slot, index) => {
-                const isToday = slot.date === todayStr;
-                let displayDate = '';
-                try {
-                  displayDate = slot.date
-                    ? new Date(slot.date).toLocaleDateString()
-                    : '';
-                } catch {
-                  displayDate = slot.date || '';
-                }
-                const timeLabel = formatTimeLabel(
-                  slot.time || '',
-                  slot.duration || '',
-                );
+              {paginatedSlots.map((slot, index) => {
+                const slotDate = slot.date?.toDate ? slot.date.toDate() : (slot.date ? new Date(slot.date) : null);
+                const slotDateStr = slotDate ? slotDate.toISOString().slice(0, 10) : '';
+                const isToday = slotDateStr === todayStr;
+                const displayDate = formatDateDDMMYYYY(slot.date);
+                const timeLabel = formatTimeLabel(slot);
 
                 return (
                   <tr
                     key={slot.id}
-                    className="border-b border-slate-100 hover:bg-slate-50"
+                    className="border-b border-slate-200 hover:bg-slate-50"
                   >
-                    <td className="px-3 py-2 text-slate-700">{index + 1}</td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.companyName || '-'}
+                    <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
+                      {startIdx + index + 1}
                     </td>
-                    <td className="px-3 py-2 text-slate-700">
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      {slot.company || slot.companyName || '-'}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
                       {slot.technology || '-'}
                     </td>
-                    <td className="px-3 py-2 text-slate-700">
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      {(() => {
+                        const hrName = slot.hrName || '';
+                        const hrMobile = slot.hrMobile || '';
+                        const hrEmail = slot.hrEmail || '';
+
+                        if (!hrName && !hrMobile && !hrEmail) {
+                          return <span className="text-slate-400">-</span>;
+                        }
+
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {hrName && (
+                              <div className="flex items-center gap-1.5">
+                                <i className="fa-solid fa-user-tie text-slate-500 w-3.5" aria-hidden="true" />
+                                <span>{hrName}</span>
+                              </div>
+                            )}
+                            {hrMobile && (
+                              <div className="flex items-center gap-1.5">
+                                <i className="fa-solid fa-phone text-slate-500 w-3.5" aria-hidden="true" />
+                                <span>{hrMobile}</span>
+                              </div>
+                            )}
+                            {hrEmail && (
+                              <div className="flex items-center gap-1.5">
+                                <i className="fa-solid fa-envelope text-slate-500 w-3.5" aria-hidden="true" />
+                                <span className="truncate max-w-[180px]" title={hrEmail}>
+                                  {hrEmail}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
                       {slot.round || '-'}
                     </td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {displayDate}{' '}
-                      {isToday && (
-                        <span className="text-emerald-600 font-semibold">
-                          (Today)
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      <div className="flex flex-col">
+                        <span>
+                          {displayDate || '-'}
+                          {isToday && (
+                            <span className="text-emerald-600 font-semibold ml-1">
+                              (Today)
+                            </span>
+                          )}
                         </span>
-                      )}
+                        {timeLabel && (
+                          <span className="text-[11px] text-slate-500">{timeLabel}</span>
+                        )}
+                      </div>
                     </td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {timeLabel || '-'}
+                    <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
+                      -
                     </td>
-                    <td className="px-3 py-2 text-slate-700">-</td>
-                    <td className="px-3 py-2 text-slate-700">
+                    <td className="px-3 py-2 text-slate-700 text-center">
                       <button
                         type="button"
                         onClick={() => handleDeleteSlot(slot.id)}
-                        className="inline-flex items-center justify-center rounded bg-red-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-red-600"
+                        className="inline-flex h-9 w-9 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                        aria-label="Delete"
                       >
                         <i className="fa-solid fa-trash" aria-hidden="true" />
                       </button>
@@ -392,6 +714,21 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
           </table>
         </div>
       )}
+      {filteredSlots.length > 0 && (
+        <div className="mt-3 flex justify-end">
+          <PaginationBar
+            totalItems={totalItems}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+            onItemsPerPageChange={(n) => {
+              setItemsPerPage(n);
+              setCurrentPage(1);
+            }}
+            label="Slots"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -400,12 +737,31 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
 export default function CandidateDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { currentUser } = useAuth();
   const params = new URLSearchParams(location.search);
   const initialNav = params.get('view') === 'slots' ? 'slots' : 'home';
   const [showAddHR, setShowAddHR] = useState(false);
   const [showBookSlot, setShowBookSlot] = useState(false);
   const [activeNav, setActiveNav] = useState(initialNav); // 'home', 'slots', 'hrs'
   const [userName, setUserName] = useState('');
+
+  // Auth guard: redirect if not candidate. Send admins to their dashboard (so back button works correctly)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sb_user');
+      const parsed = raw ? JSON.parse(raw) : null;
+      const role = (parsed?.role || '').trim().toLowerCase();
+      if (!parsed?.mobile) {
+        navigate('/login', { replace: true });
+        return;
+      }
+      if (role === 'admin') {
+        navigate('/admin-dashboard', { replace: true });
+      }
+    } catch {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
 
   // HR list shared state - fetched from Firestore
   const [hrList, setHrList] = useState([]);
@@ -480,7 +836,21 @@ export default function CandidateDashboard() {
 
   const handleAddHR = async (hr) => {
     try {
-      // Save to Firestore
+      // Resolve candidate name at save time so admin "Added By" shows who added the HR
+      let addedByName = userName?.trim();
+      if (!addedByName) {
+        try {
+          const raw = localStorage.getItem('sb_user');
+          const parsed = raw ? JSON.parse(raw) : null;
+          addedByName = (parsed?.name || '').trim();
+        } catch {
+          // ignore
+        }
+      }
+      if (!addedByName && currentUser?.displayName) addedByName = currentUser.displayName.trim();
+      if (!addedByName && currentUser?.email) addedByName = currentUser.email.split('@')[0];
+      if (!addedByName) addedByName = 'Candidate';
+
       const docRef = await addDoc(collection(db, 'hrs'), {
         name: hr.name || '',
         email: hr.email || '',
@@ -488,7 +858,8 @@ export default function CandidateDashboard() {
         company: hr.company || '',
         technology: hr.technology || '',
         jobType: hr.jobType || '',
-        addedBy: 'Candidate',
+        addedBy: addedByName,
+        addedById: currentUser?.uid || null,
         createdAt: serverTimestamp(),
       });
       
@@ -525,6 +896,8 @@ export default function CandidateDashboard() {
     <div className="min-h-screen bg-gray-50">
       <Header
         userName={userName}
+        activeNav={activeNav}
+        onChangeNav={handleNavClick}
         onLogout={() => {
           localStorage.removeItem('sb_user');
           navigate('/login', { replace: true });
@@ -540,10 +913,18 @@ export default function CandidateDashboard() {
       />
       <main className="p-2 sm:p-4 md:p-8">
         {showBookSlot ? (
-          <BookSlot onClose={() => setShowBookSlot(false)} onOpenAddHR={() => setShowAddHR(true)} hrList={hrList} />
+          <BookSlot
+            onClose={() => setShowBookSlot(false)}
+            onOpenAddHR={() => setShowAddHR(true)}
+            onBookSuccess={() => {
+              setShowBookSlot(false);
+              setActiveNav('slots');
+            }}
+            hrList={hrList}
+          />
         ) : activeNav === 'slots' ? (
-          <MySlots 
-            onBookNewSlot={() => setShowBookSlot(true)} 
+          <MySlots
+            onBookNewSlot={() => setShowBookSlot(true)}
             onBackToHome={() => setActiveNav('home')}
           />
         ) : (

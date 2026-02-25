@@ -41,3 +41,10 @@ input[type="date"]::-moz-clear {
   display: none;
 }
 
+/* Add Leave date input: show only native icon by undoing global hide */
+.add-leave-date::-webkit-calendar-picker-indicator {
+  opacity: 1;
+  display: block;
+  cursor: pointer;
+}
+

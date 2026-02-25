@@ -13,17 +13,15 @@ function Header({ fullWidth = false }) {
         }
       >
         <div className="relative flex items-center justify-between w-full">
-          {/* Left: Logo (for balance) */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0 w-32">
-            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-full bg-white shadow flex items-center justify-center flex-shrink-0">
-              <img src={logo} alt="Slot Booking" className="h-6 w-6" />
-            </div>
-          </div>
+          {/* Left spacer (no logo) */}
+          <div className="w-8 sm:w-10" />
 
-          {/* Center: Slot Booking Calendar */}
-          <span className="absolute left-1/2 -translate-x-1/2 text-sm sm:text-base font-semibold text-purple-700 truncate">
-            Slot Booking Calendar
-          </span>
+          {/* Center: Slot Booking */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+            <span className="text-sm sm:text-base font-semibold text-purple-700 truncate">
+              Slot Booking
+            </span>
+          </div>
 
           {/* Right: Login button */}
           <Link

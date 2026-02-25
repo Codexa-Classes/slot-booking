@@ -6,6 +6,7 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
   onSnapshot,
   doc,
   updateDoc,
@@ -19,16 +20,12 @@ import {
   updateSlotStatus,
   deleteSlot,
   getSlotStatistics,
+  slotsSnapshotToUI,
+  getLeaves,
+  addLeave as addLeaveToFirestore,
+  deleteLeave as deleteLeaveFromFirestore,
+  formatDateDDMMYYYY,
 } from '../firebase/slotsService';
-import {
-  CalendarIcon,
-  HomeIcon,
-  UsersIcon,
-  ChartBarIcon,
-  PlusIcon,
-  ArrowLeftIcon,
-  MagnifyingGlassIcon,
-} from '@heroicons/react/24/solid';
 import WeekCalendar from '../Components/WeekCalendar';
 
 // Reusable pagination bar: left = count label, right = « < pages > » + per-page selector
@@ -55,7 +52,7 @@ function PaginationBar({
   }
 
   return (
-    <div className="mt-3 flex items-center justify-between gap-3 flex-wrap border border-slate-200 rounded-lg bg-slate-50/50 px-3 py-2">
+    <div className="mt-3 flex items-center justify-between gap-3 flex-wrap px-3 py-2">
       {/* Left: count */}
       <div className="text-xs sm:text-sm text-slate-600">
         {totalItems} {label}
@@ -128,35 +125,58 @@ function PaginationBar({
   );
 }
 
-// Header copied from CandidateDashboard, adjusted for Admin
-function AdminHeader() {
+// Header copied from CandidateDashboard, adjusted for Admin, with mobile sidebar nav
+function AdminHeader({ activeTab, onChangeTab }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
     localStorage.removeItem('sb_user');
     setMenuOpen(false);
-    navigate('/login');
+    navigate('/login', { replace: true });
+  };
+
+  const navItems = [
+    { id: 'home', label: 'Home', icon: 'fa-solid fa-house' },
+    { id: 'candidates', label: 'Candidates', icon: 'fa-solid fa-users' },
+    { id: 'slots', label: 'Slots', icon: 'fa-solid fa-calendar-days' },
+    { id: 'leaves', label: 'Admin Leaves', icon: 'fa-solid fa-calendar-check' },
+    { id: 'hrs', label: 'HRs', icon: 'fa-solid fa-user-group' },
+    { id: 'stats', label: 'Statistics', icon: 'fa-solid fa-chart-line' },
+  ];
+
+  const handleNavClick = (id) => {
+    if (typeof onChangeTab === 'function') {
+      onChangeTab(id);
+    }
+    setNavOpen(false);
   };
 
   return (
-    <div className="bg-pink-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3">
-      {/* Left Section */}
+    <>
+      <div className="bg-pink-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3 relative">
+        {/* Left Section: mobile menu + title */}
       <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        <div className="w-8 sm:w-10 md:w-12 h-8 sm:h-10 md:h-12 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-lg sm:text-xl md:text-2xl font-bold text-white">V</span>
-        </div>
+          <button
+            type="button"
+            onClick={() => setNavOpen((open) => !open)}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-slate-700 hover:bg-pink-200 shadow-sm md:hidden"
+            aria-label="Toggle navigation"
+          >
+            <i className="fa-solid fa-bars w-4 h-4" aria-hidden="true" />
+          </button>
         <h1 className="text-sm sm:text-base md:text-xl font-bold text-gray-900 truncate">
           Slot Booking
         </h1>
       </div>
 
-      {/* Center Section - Hidden on mobile */}
+        {/* Center Section - domain (hidden on small screens like screenshot) */}
       <div className="hidden md:block absolute left-1/2 transform -translate-x-1/2">
         <p className="text-sm text-gray-600">virajkadam.in</p>
       </div>
 
-      {/* Right Section */}
+        {/* Right Section: user info */}
       <div className="relative flex items-center gap-2 sm:gap-3 md:gap-4 ml-auto">
         <button
           type="button"
@@ -191,6 +211,49 @@ function AdminHeader() {
         )}
       </div>
     </div>
+
+      {/* Mobile sidebar navigation (like screenshot) */}
+      {navOpen && (
+        <div className="fixed inset-0 z-40 md:hidden">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setNavOpen(false)}
+            aria-label="Close navigation overlay"
+          />
+          <div className="relative h-full w-64 max-w-[80%] bg-slate-900 text-white shadow-xl">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-700">
+              <span className="text-sm font-semibold">Menu</span>
+              <button
+                type="button"
+                onClick={() => setNavOpen(false)}
+                className="p-1.5 rounded hover:bg-slate-800"
+                aria-label="Close menu"
+              >
+                <i className="fa-solid fa-xmark w-4 h-4" aria-hidden="true" />
+              </button>
+            </div>
+            <nav className="flex flex-col gap-1 px-2 py-3">
+              {navItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleNavClick(item.id)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-left ${
+                    activeTab === item.id
+                      ? 'bg-slate-800 text-white'
+                      : 'text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  <i className={`${item.icon} w-4 h-4`} aria-hidden="true" />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -200,7 +263,7 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
     'inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all';
 
   return (
-    <div className="bg-white px-3 sm:px-6 py-2 flex items-center gap-2 shadow-sm border-b border-purple-100">
+    <div className="hidden md:flex bg-white px-3 sm:px-6 py-2 items-center gap-2 shadow-sm border-b border-purple-100">
       {/* Home - active */}
       <button
         onClick={() => onChange('home')}
@@ -210,7 +273,7 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
             : 'text-gray-700 hover:text-gray-900'
         }`}
       >
-        <HomeIcon className="w-4 h-4" />
+        <i className="fa-solid fa-house w-4 h-4" aria-hidden="true" />
         <span>Home</span>
       </button>
 
@@ -223,7 +286,7 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
             : 'text-gray-700 hover:text-gray-900'
         }`}
       >
-        <UsersIcon className="w-4 h-4" />
+        <i className="fa-solid fa-users w-4 h-4" aria-hidden="true" />
         <span>Candidates</span>
       </button>
 
@@ -236,7 +299,7 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
             : 'text-gray-700 hover:text-gray-900'
         }`}
       >
-        <CalendarIcon className="w-4 h-4" />
+        <i className="fa-solid fa-calendar w-4 h-4" aria-hidden="true" />
         <span>Slots</span>
       </button>
 
@@ -249,7 +312,7 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
             : 'text-gray-700 hover:text-gray-900'
         }`}
       >
-        <CalendarIcon className="w-4 h-4" />
+        <i className="fa-solid fa-calendar w-4 h-4" aria-hidden="true" />
         <span>Admin Leaves</span>
       </button>
 
@@ -262,7 +325,7 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
             : 'text-gray-700 hover:text-gray-900'
         }`}
       >
-        <UsersIcon className="w-4 h-4" />
+        <i className="fa-solid fa-users w-4 h-4" aria-hidden="true" />
         <span>HRs</span>
       </button>
 
@@ -275,7 +338,7 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
             : 'text-gray-700 hover:text-gray-900'
         }`}
       >
-        <ChartBarIcon className="w-4 h-4" />
+        <i className="fa-solid fa-chart-bar w-4 h-4" aria-hidden="true" />
         <span>Statistics</span>
       </button>
 
@@ -290,181 +353,19 @@ function AdminTopNav({ activeTab, onChange, pendingApprovals = 0 }) {
 // Placeholder events for admin calendar (no fixed dates; real data should come from backend)
 const ADMIN_EVENTS = [];
 
-const MOCK_CANDIDATES = [
-  {
-    id: 1,
-    name: 'Nil',
-    mobile: '9975072250',
-    experience: '4',
-    technologies: ['Python', 'React Developer', 'MEAN Stack'],
-    totalScheduled: '4',
-    lastInterview: 'Recent',
-    payment: '₹0',
-    status: 'Active',
-    selected: true,
-    referredBy: 'Nilesh Sir',
-  },
-  {
-    id: 2,
-    name: 'Lalit',
-    mobile: '7495915658',
-    experience: '3',
-    technologies: ['PHP'],
-    totalScheduled: '0',
-    lastInterview: '-',
-    payment: '₹0',
-    status: 'Active',
-    selected: false,
-    referredBy: 'Anil Shinde Sir',
-  },
-  {
-    id: 3,
-    name: 'Jitesh',
-    mobile: '9021117830',
-    experience: '4',
-    technologies: ['Python', 'React Developer'],
-    totalScheduled: '0',
-    lastInterview: '-',
-    payment: '₹0',
-    status: 'Active',
-    selected: false,
-    referredBy: 'Vishal Sir',
-  },
-  {
-    id: 4,
-    name: 'Kiiran Shinde',
-    mobile: '9876543210',
-    experience: '',
-    technologies: ['Python'],
-    totalScheduled: '1',
-    lastInterview: 'Recent',
-    payment: '₹0',
-    status: 'Active',
-    selected: false,
-    referredBy: 'Viraj Kadam Sir',
-  },
-];
+function toTitleCase(value) {
+  const str = String(value || '').toLowerCase();
+  return str.replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
-const MOCK_SLOTS = [
-  {
-    id: 1,
-    name: 'Sanjay Kumar',
-    company: 'ChZillion.Com',
-    technology: 'App Support',
-    round: 'Round 1',
-    createdAt: 'Recently, 03:31 PM',
-    dateLabel: 'Upcoming (Tomorrow)',
-    timeLabel: '05:45 PM – 06:15 PM (30 mins)',
-    status: 'Pending',
-  },
-  {
-    id: 2,
-    name: 'Sanjay Kumar',
-    company: 'Eclerex',
-    technology: 'App Support',
-    round: 'Round 1',
-    createdAt: 'Recently, 02:07 PM',
-    dateLabel: 'Upcoming (Tomorrow)',
-    timeLabel: '05:00 PM – 05:30 PM (30 mins)',
-    status: 'Pending',
-  },
-  {
-    id: 3,
-    name: 'Mayuri Sonvane',
-    company: 'Entrata Care',
-    technology: 'PHP',
-    round: 'Round 1',
-    createdAt: 'Recently, 02:29 PM',
-    dateLabel: 'Upcoming (Tomorrow)',
-    timeLabel: '04:00 PM – 05:00 PM (1 Hour)',
-    status: 'Approved',
-  },
-  {
-    id: 4,
-    name: 'Kiiran Shinde',
-    company: 'KPIT',
-    technology: 'Python',
-    round: 'Round 1',
-    createdAt: 'Recently, 02:00 PM',
-    dateLabel: 'Upcoming',
-    timeLabel: '03:00 Pm - 03:45 Pm',
-    status: 'Approved',
-  },
-];
-
-// Simple monthly stats for Statistics tab (demo data, no fixed dates)
-const SIMPLE_MONTHLY_STATS = [
-  { label: 'M1', value: 1 },
-  { label: 'M2', value: 1 },
-  { label: 'M3', value: 18 },
-  { label: 'M4', value: 35 },
-  { label: 'M5', value: 47 },
-  { label: 'M6', value: 25 },
-  { label: 'M7', value: 20 },
-  { label: 'M8', value: 10 },
-  { label: 'M9', value: 17 },
-  { label: 'M10', value: 12 },
-  { label: 'M11', value: 2 },
-  { label: 'M12', value: 21 },
-  { label: 'M13', value: 24 },
-  { label: 'M14', value: 27 },
-];
-
-const MOCK_HRS = [
-  {
-    id: 1,
-    name: 'Anita',
-    email: 'Anita.Singh@3pillarglobal.com',
-    mobile: '-',
-    company: '3pillarglobal',
-    technology: 'Python',
-    jobType: 'WFH (Permanent)',
-    addedBy: 'Xyz',
-  },
-  {
-    id: 2,
-    name: 'Sayali Bhongale',
-    email: 'Sayali.Bhongale@Mphatek.com',
-    mobile: '9175111799',
-    company: 'MPhatek',
-    technology: 'Automation Testing',
-    jobType: 'Hybrid',
-    addedBy: 'Kedar Wale',
-  },
-  {
-    id: 3,
-    name: 'Chetan Holayappa',
-    email: 'Chetan.Ah@Resilinc.Ai',
-    mobile: '-',
-    company: 'Resilinc',
-    technology: 'React Developer',
-    jobType: 'WFH (Permanent)',
-    addedBy: 'Pragati Khole',
-  },
-  {
-    id: 4,
-    name: 'Afrin Shaikh',
-    email: 'Safrin@Teksystems.com',
-    mobile: '9603716897',
-    company: 'HSBC',
-    technology: 'Manual Testing',
-    jobType: 'Hybrid',
-    addedBy: 'XYZ',
-  },
-  {
-    id: 5,
-    name: 'Satya Jagjpineilly',
-    email: 'Satya@Shurutec.com',
-    mobile: '9390714478',
-    company: 'Shuru Technologies',
-    technology: 'Python',
-    jobType: 'WFH (Permanent)',
-    addedBy: 'Pragati Bhole',
-  },
-];
+// Dummy data removed – use Firestore only
+const MOCK_CANDIDATES = [];
+const MOCK_SLOTS = [];
+const MOCK_HRS = [];
 
 function AdminCandidatesTable({
   candidates,
+  slots = [],
   filter,
   search,
   onBackToHome,
@@ -476,12 +377,60 @@ function AdminCandidatesTable({
   onViewCandidate,
   onEditCandidate,
 }) {
+  const getLastInterview = (candidate) => {
+    const candidateName = (candidate?.name || '').trim();
+    const candidateSlots = slots.filter(
+      (s) => (s.candidateName || s.name || '').trim() === candidateName,
+    );
+    if (candidateSlots.length === 0) return null;
+
+    const now = new Date();
+
+    // Only consider slots whose END time is in the past
+    const completedSlots = candidateSlots.filter((slot) => {
+      const baseDate =
+        slot.date instanceof Date ? slot.date : new Date(slot.date || 0);
+      const startHour = slot.startHour != null ? slot.startHour : 0;
+      const startMinute = slot.startMinute != null ? slot.startMinute : 0;
+      const durationMins =
+        slot.duration != null ? Number(slot.duration) : 30;
+
+      const start = new Date(baseDate);
+      start.setHours(startHour, startMinute, 0, 0);
+      const end = new Date(start.getTime() + durationMins * 60000);
+
+      return end <= now;
+    });
+
+    if (completedSlots.length === 0) return null;
+
+    // Latest completed slot by end time
+    const sorted = [...completedSlots].sort((a, b) => {
+      const da = a.date instanceof Date ? a.date : new Date(a.date || 0);
+      const db = b.date instanceof Date ? b.date : new Date(b.date || 0);
+      const ta = da.getTime() + ((a.startHour || 0) * 60 + (a.startMinute || 0)) * 60000;
+      const tb = db.getTime() + ((b.startHour || 0) * 60 + (b.startMinute || 0)) * 60000;
+      return tb - ta;
+    });
+
+    const last = sorted[0];
+    return {
+      date: last.dateExactLabel || last.dateLabel || '-',
+      time: last.timeLabel || '',
+    };
+  };
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const totalItems = candidates.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
   const startIdx = (currentPage - 1) * itemsPerPage;
   const paginatedCandidates = candidates.slice(startIdx, startIdx + itemsPerPage);
+
+  const getScheduledCount = (candidateName) => {
+    return slots.filter(
+      (s) => (s.candidateName || s.name || '').trim() === (candidateName || '').trim(),
+    ).length;
+  };
 
   // Reset to page 1 when data/filter changes
   useEffect(() => {
@@ -496,9 +445,9 @@ function AdminCandidatesTable({
         <div className="flex items-start">
           <button
             onClick={onBackToHome}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            <ArrowLeftIcon className="w-4 h-4" />
+            <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -516,7 +465,7 @@ function AdminCandidatesTable({
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50"
             aria-label="Refresh"
           >
-            <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+            <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
           </button>
         </div>
 
@@ -525,9 +474,11 @@ function AdminCandidatesTable({
           {/* Add Candidate */}
           <button
             onClick={onOpenAddForm}
-            className="inline-flex items-center gap-1.5 rounded-full bg-lime-500 px-3 sm:px-4 py-1.5 text-[11px] sm:text-sm font-semibold text-white shadow hover:bg-lime-600 whitespace-nowrap"
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-3 sm:px-4 py-1.5 text-[11px] sm:text-sm font-semibold text-white shadow hover:bg-emerald-600 whitespace-nowrap"
           >
-            <PlusIcon className="w-4 h-4" />
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/10 border border-white/40">
+              <i className="fa-solid fa-plus text-xs" aria-hidden="true" />
+            </span>
             <span>Add Candidate</span>
           </button>
         </div>
@@ -547,7 +498,7 @@ function AdminCandidatesTable({
 
         {/* Right: all filters grouped and right-aligned */}
         <div className="flex items-center justify-end gap-3 w-full sm:w-auto">
-          {/* On / Off pill */}
+          {/* Selected / Unselected pill */}
           <div className="flex rounded-full border border-purple-400 overflow-hidden text-[11px] sm:text-xs">
             <button
               onClick={() => onChangeFilter('selected')}
@@ -557,7 +508,7 @@ function AdminCandidatesTable({
                   : 'bg-white text-purple-600'
               }`}
             >
-              On
+                Selected
             </button>
             <button
               onClick={() => onChangeFilter('unselected')}
@@ -567,7 +518,7 @@ function AdminCandidatesTable({
                   : 'bg-white text-purple-600'
               }`}
             >
-              Off
+                Unselected
             </button>
           </div>
 
@@ -586,7 +537,7 @@ function AdminCandidatesTable({
 
           {/* Search */}
           <div className="relative w-36 sm:w-48">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               type="text"
               placeholder="Search candidates..."
@@ -598,39 +549,36 @@ function AdminCandidatesTable({
         </div>
       </div>
 
-      {/* Table */}
+      {/* Table with grid (column borders) */}
       <div className="overflow-x-auto">
-        <table className="min-w-full border-collapse text-xs sm:text-sm">
+        <table className="min-w-full border-collapse text-xs sm:text-sm border border-slate-200">
           <thead>
             <tr className="bg-slate-50 text-slate-600">
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200 w-10">
-                Sr. No
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200 w-10">
+                Sr.
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Name
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200">
                 Mobile
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200">
                 Experience
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200">
                 Technologies
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200">
                 Total Scheduled
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200">
                 Last Interview
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
-                Payment
-              </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200">
                 Status
               </th>
-              <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200">
                 Actions
               </th>
             </tr>
@@ -638,11 +586,11 @@ function AdminCandidatesTable({
           <tbody>
             {paginatedCandidates.map((c) => (
               <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-3 py-2 text-slate-700 text-center">{c.id}</td>
-                <td className="px-3 py-2 text-slate-800">{c.name}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.mobile}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.experience}</td>
-                <td className="px-3 py-2 text-center">
+                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">{c.id}</td>
+                <td className="px-3 py-2 text-slate-800 border-r border-slate-200">{c.name}</td>
+                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">{c.mobile}</td>
+                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">{c.experience}</td>
+                <td className="px-3 py-2 text-center border-r border-slate-200">
                   <div className="inline-flex flex-wrap gap-1 justify-center">
                     {c.technologies.map((t) => (
                       <span
@@ -654,10 +602,26 @@ function AdminCandidatesTable({
                     ))}
                   </div>
                 </td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.totalScheduled}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.lastInterview}</td>
-                <td className="px-3 py-2 text-slate-700 text-center">{c.payment}</td>
-                <td className="px-3 py-2 text-center">
+                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
+                  {getScheduledCount(c.name)}
+                </td>
+                <td className="px-3 py-2 text-slate-700 text-center text-xs border-r border-slate-200">
+                  {(() => {
+                    const last = getLastInterview(c);
+                    if (last) {
+                      return (
+                        <div className="flex flex-col">
+                          <span>{last.date}</span>
+                          {last.time && (
+                            <span className="text-[11px] text-slate-500">{last.time}</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    return '-';
+                  })()}
+                </td>
+                <td className="px-3 py-2 text-center border-r border-slate-200">
                   <button
                     onClick={() => onToggleStatus(c.id)}
                     className={`inline-flex rounded-full px-3 py-0.5 text-[11px] font-semibold ${
@@ -670,22 +634,22 @@ function AdminCandidatesTable({
                   </button>
                 </td>
                 <td className="px-3 py-2 text-center">
-                  <div className="inline-flex gap-1">
+                  <div className="inline-flex gap-2">
                     <button
                       onClick={() => onViewCandidate(c.id)}
-                      className="h-7 w-7 rounded bg-sky-500 text-white text-xs font-semibold hover:bg-sky-600 flex items-center justify-center"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded bg-sky-500 text-white hover:bg-sky-600"
                     >
                       <i className="fa-solid fa-eye" aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => onEditCandidate(c.id)}
-                      className="h-7 w-7 rounded bg-amber-400 text-white text-xs font-semibold hover:bg-amber-500 flex items-center justify-center"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded bg-amber-400 text-white hover:bg-amber-500"
                     >
                       <i className="fa-solid fa-pen" aria-hidden="true" />
                     </button>
                     <button
                       onClick={() => onDeleteCandidate(c.id)}
-                      className="h-7 w-7 rounded bg-red-500 text-white text-xs font-semibold hover:bg-red-600 flex items-center justify-center"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
                     >
                       <i className="fa-solid fa-trash" aria-hidden="true" />
                     </button>
@@ -839,7 +803,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
             onClick={onBack}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm hover:bg-slate-50"
           >
-            <ArrowLeftIcon className="w-4 h-4 text-slate-600" />
+            <i className="fa-solid fa-arrow-left w-4 h-4 text-slate-600" aria-hidden="true" />
           </button>
         </div>
 
@@ -870,7 +834,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         {/* Candidate Name */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            * Candidate Name
+            <span className="text-red-500">*</span> Candidate Name
           </label>
           <input
             type="text"
@@ -884,7 +848,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         {/* Mobile */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            * Mobile
+            <span className="text-red-500">*</span> Mobile
           </label>
           <input
             type="tel"
@@ -912,7 +876,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         {/* Password with Font Awesome show/hide icon */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            * Password
+            <span className="text-red-500">*</span> Password
           </label>
           <div className="flex items-stretch">
             <input
@@ -927,10 +891,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
               className="inline-flex items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-slate-50 px-3 text-slate-500 hover:bg-slate-100"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              <i
-                className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}
-                aria-hidden="true"
-              />
+              {showPassword ? <i className="fa-solid fa-eye-slash" aria-hidden="true" /> : <i className="fa-solid fa-eye" aria-hidden="true" />}
             </button>
           </div>
         </div>
@@ -938,7 +899,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         {/* Technology (custom multi-select dropdown, tags inside input like screenshot) */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            * Technology
+            <span className="text-red-500">*</span> Technology
           </label>
           <div className="relative">
             {/* Visible input box with tags */}
@@ -982,7 +943,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
                     ×
                   </button>
                 )}
-                <i className="fa-solid fa-chevron-down text-slate-400 text-xs" />
+                <i className="fa-solid fa-chevron-down text-slate-400 text-xs" aria-hidden="true" />
               </div>
             </div>
             {showTechDropdown && (
@@ -1029,7 +990,7 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         {/* Referred By (single-select) */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            * Referred By
+            <span className="text-red-500">*</span> Referred By
           </label>
           <select
             value={form.referredBy}
@@ -1049,9 +1010,12 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         <button
           type="submit"
           disabled={loading}
-          className="inline-flex items-center justify-center rounded-full bg-purple-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-purple-600 disabled:opacity-70"
+          className="inline-flex items-center gap-2 justify-center rounded-full bg-emerald-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-emerald-600 disabled:opacity-70"
         >
-          {loading ? 'Adding…' : 'Add Candidate'}
+          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/10 border border-white/40">
+            <i className="fa-solid fa-plus text-xs" aria-hidden="true" />
+          </span>
+          <span>{loading ? 'Adding…' : 'Add Candidate'}</span>
         </button>
       </div>
     </form>
@@ -1131,9 +1095,9 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
           <button
             type="button"
             onClick={onBack}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            <ArrowLeftIcon className="w-4 h-4" />
+            <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -1207,10 +1171,7 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
               className="inline-flex items-center justify-center rounded-r-md border border-l-0 border-slate-200 bg-slate-50 px-3 text-slate-500 hover:bg-slate-100"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
-              <i
-                className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}
-                aria-hidden="true"
-              />
+              {showPassword ? <i className="fa-solid fa-eye-slash" aria-hidden="true" /> : <i className="fa-solid fa-eye" aria-hidden="true" />}
             </button>
           </div>
         </div>
@@ -1261,7 +1222,7 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
                     ×
                   </button>
                 )}
-                <i className="fa-solid fa-chevron-down text-slate-400 text-xs" />
+                <i className="fa-solid fa-chevron-down text-slate-400 text-xs" aria-hidden="true" />
               </div>
             </div>
             {showTechDropdown && (
@@ -1441,9 +1402,12 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
       <div className="mt-6 flex justify-end">
         <button
           type="submit"
-          className="inline-flex items-center justify-center rounded-full bg-purple-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-purple-600"
+          className="inline-flex items-center gap-2 justify-center rounded-full bg-sky-500 px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-sky-600"
         >
-          Update Candidate
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/10 border border-white/40">
+            <i className="fa-solid fa-check text-[10px]" aria-hidden="true" />
+          </span>
+          <span>Update Candidate</span>
         </button>
       </div>
     </form>
@@ -1461,32 +1425,197 @@ function AdminSlotsTable({
   onRejectSlot,
   onDeleteSlot,
   onOpenCandidateSlots,
+  hrs = [],
   loading = false,
   error = null,
   stats = null,
 }) {
   const totalSlots = slots.length;
+  const [timeRange, setTimeRange] = useState('thisWeek');
+  const [companyFilter, setCompanyFilter] = useState('');
+  const [technologyFilter, setTechnologyFilter] = useState('');
+  const [roundFilter, setRoundFilter] = useState('');
+  const [hrFilter, setHrFilter] = useState('');
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [showTechnologyDropdown, setShowTechnologyDropdown] = useState(false);
+  const [showRoundDropdown, setShowRoundDropdown] = useState(false);
+  const [showHrDropdown, setShowHrDropdown] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+  const [technologySearch, setTechnologySearch] = useState('');
+  const [roundSearch, setRoundSearch] = useState('');
+  const [hrSearch, setHrSearch] = useState('');
+
+  const companyOptions = useMemo(() => {
+    const set = new Set();
+    slots.forEach((slot) => {
+      const company = String(slot.company || slot.companyName || '').trim();
+      if (!company) return;
+      set.add(company);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [slots]);
+
+  const technologyOptions = useMemo(() => {
+    const set = new Set();
+    slots.forEach((slot) => {
+      const tech = String(slot.technology || '').trim();
+      if (!tech) return;
+      set.add(tech);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [slots]);
+
+  const roundOptions = useMemo(() => {
+    const set = new Set();
+    slots.forEach((slot) => {
+      const round = String(slot.round || '').trim();
+      if (!round) return;
+      set.add(round);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [slots]);
+
+  const hrOptions = useMemo(() => {
+    const set = new Set();
+    slots.forEach((slot) => {
+      const hrName = String(slot.hrName || '').trim();
+      if (!hrName) return;
+      set.add(hrName);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [slots]);
+
+  const filtersRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filtersRef.current && !filtersRef.current.contains(event.target)) {
+        setShowCompanyDropdown(false);
+        setShowTechnologyDropdown(false);
+        setShowRoundDropdown(false);
+        setShowHrDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
+  const filteredCompanyOptions = useMemo(() => {
+    const q = companySearch.trim().toLowerCase();
+    if (!q) return companyOptions;
+    return companyOptions.filter((c) => c.toLowerCase().includes(q));
+  }, [companyOptions, companySearch]);
+
+  const filteredTechnologyOptions = useMemo(() => {
+    const q = technologySearch.trim().toLowerCase();
+    if (!q) return technologyOptions;
+    return technologyOptions.filter((t) => t.toLowerCase().includes(q));
+  }, [technologyOptions, technologySearch]);
+
+  const filteredRoundOptions = useMemo(() => {
+    const q = roundSearch.trim().toLowerCase();
+    if (!q) return roundOptions;
+    return roundOptions.filter((r) => r.toLowerCase().includes(q));
+  }, [roundOptions, roundSearch]);
+
+  const filteredHrOptions = useMemo(() => {
+    const q = hrSearch.trim().toLowerCase();
+    if (!q) return hrOptions;
+    return hrOptions.filter((h) => h.toLowerCase().includes(q));
+  }, [hrOptions, hrSearch]);
+
+  const dropdownFilteredSlots = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+
+    const startOfWeek = new Date(startOfToday);
+    const day = startOfWeek.getDay(); // 0 (Sun) .. 6 (Sat)
+    const diffToMonday = (day + 6) % 7; // days since Monday
+    startOfWeek.setDate(startOfWeek.getDate() - diffToMonday);
+
+    const startOfNextWeek = new Date(startOfWeek);
+    startOfNextWeek.setDate(startOfNextWeek.getDate() + 7);
+
+    const startOfLastWeek = new Date(startOfWeek);
+    startOfLastWeek.setDate(startOfLastWeek.getDate() - 7);
+
+    return slots.filter((slot) => {
+      const company = String(slot.company || slot.companyName || '').trim();
+      const tech = String(slot.technology || '').trim();
+      const round = String(slot.round || '').trim();
+      const hrName = String(slot.hrName || '').trim();
+
+      if (timeRange === 'thisWeek' || timeRange === 'lastWeek') {
+        const d =
+          slot.date instanceof Date
+            ? slot.date
+            : new Date(slot.date);
+        if (Number.isNaN(d.getTime())) return false;
+        const dateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+        if (timeRange === 'thisWeek') {
+          // Full current calendar week (Mon–Sun)
+          if (!(dateOnly >= startOfWeek && dateOnly < startOfNextWeek)) return false;
+        } else if (timeRange === 'lastWeek') {
+          if (!(dateOnly >= startOfLastWeek && dateOnly < startOfWeek)) return false;
+        }
+      }
+
+      if (companyFilter && company !== companyFilter) return false;
+      if (technologyFilter && tech !== technologyFilter) return false;
+      if (roundFilter && round !== roundFilter) return false;
+      if (hrFilter && hrName !== hrFilter) return false;
+      return true;
+    });
+  }, [slots, companyFilter, technologyFilter, roundFilter, hrFilter, timeRange]);
+
+  const approvedFilteredSlots = useMemo(
+    () => dropdownFilteredSlots.filter((slot) => slot.status === 'Approved'),
+    [dropdownFilteredSlots],
+  );
+
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
-  const totalItems = slots.length;
+  const totalItems = dropdownFilteredSlots.length;
   const startIdx = (currentPage - 1) * itemsPerPage;
-  const paginatedSlots = slots.slice(startIdx, startIdx + itemsPerPage);
+  const paginatedSlots = useMemo(
+    () => dropdownFilteredSlots.slice(startIdx, startIdx + itemsPerPage),
+    [dropdownFilteredSlots, startIdx, itemsPerPage],
+  );
+
+  const displayedLastWeek =
+    timeRange === 'lastWeek'
+      ? approvedFilteredSlots.length
+      : stats?.lastWeek ?? 0;
+  const displayedThisWeek =
+    timeRange === 'thisWeek'
+      ? approvedFilteredSlots.length
+      : stats?.thisWeek ?? 0;
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [slots.length]);
+  }, [dropdownFilteredSlots.length]);
 
   return (
-    <div className="bg-white rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6">
+    <div className="bg-white rounded-lg sm:rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6">
       {/* Header row with back + title */}
       <div className="flex items-center justify-between mb-2 gap-3">
         {/* Left: back button only */}
         <div className="flex items-center">
           <button
+            type="button"
             onClick={onBackToHome}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            <ArrowLeftIcon className="w-4 h-4" />
+            <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -1500,11 +1629,20 @@ function AdminSlotsTable({
             onClick={() => {
               onChangeFilter('all');
               onChangeSearch('');
+              setTimeRange('thisWeek');
+              setCompanyFilter('');
+              setTechnologyFilter('');
+              setRoundFilter('');
+              setHrFilter('');
+              setCompanySearch('');
+              setTechnologySearch('');
+              setRoundSearch('');
+              setHrSearch('');
             }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50"
             aria-label="Refresh"
           >
-            <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+            <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
           </button>
         </div>
 
@@ -1525,19 +1663,19 @@ function AdminSlotsTable({
         <div className="flex flex-wrap gap-6 text-xs sm:text-sm text-slate-700">
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.total ?? totalSlots}
+              {approvedFilteredSlots.length}
             </span>
-            <span className="text-[11px] text-slate-500">Total Slots</span>
+            <span className="text-[11px] text-slate-500">Total Slots (Approved)</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.lastWeek ?? 0}
+              {displayedLastWeek}
             </span>
             <span className="text-[11px] text-slate-500">Last Week</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
-              {stats?.thisWeek ?? 0}
+              {displayedThisWeek}
             </span>
             <span className="text-[11px] text-slate-500">This Week</span>
           </div>
@@ -1556,7 +1694,281 @@ function AdminSlotsTable({
         </div>
 
         {/* Right: filters */}
-        <div className="flex items-center justify-end gap-3">
+        <div
+          className="flex flex-wrap items-center justify-end gap-2 sm:gap-3"
+          ref={filtersRef}
+        >
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs sm:text-sm text-slate-700"
+            aria-label="Filter by time range"
+          >
+            <option value="thisWeek">This Week</option>
+            <option value="lastWeek">Last Week</option>
+            <option value="all">All</option>
+          </select>
+
+          {/* Company searchable dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCompanyDropdown((v) => !v);
+                setShowTechnologyDropdown(false);
+                setShowRoundDropdown(false);
+                setShowHrDropdown(false);
+              }}
+              className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[110px] justify-between"
+              aria-label="Filter by company"
+            >
+              <span className="truncate">
+                {companyFilter ? toTitleCase(companyFilter) : 'Company'}
+              </span>
+              <span className="flex items-center gap-1 ml-2">
+                {companyFilter && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCompanyFilter('');
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    aria-label="Clear company filter"
+                  >
+                    ×
+                  </button>
+                )}
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
+              </span>
+            </button>
+            {showCompanyDropdown && (
+              <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto text-[11px] sm:text-xs">
+                <div className="px-2 py-1 border-b border-slate-100 bg-slate-50">
+                  <input
+                    type="text"
+                    value={companySearch}
+                    onChange={(e) => setCompanySearch(e.target.value)}
+                    placeholder="Search company..."
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-[11px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-purple-300"
+                  />
+                </div>
+                {filteredCompanyOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setCompanyFilter(opt);
+                      setShowCompanyDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 ${
+                      companyFilter === opt
+                        ? 'bg-sky-100 text-slate-900'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {toTitleCase(opt)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Technology searchable dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowTechnologyDropdown((v) => !v);
+                setShowCompanyDropdown(false);
+                setShowRoundDropdown(false);
+                setShowHrDropdown(false);
+              }}
+              className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[130px] justify-between"
+              aria-label="Filter by technology"
+            >
+              <span className="truncate">
+                {technologyFilter ? toTitleCase(technologyFilter) : 'Technology'}
+              </span>
+              <span className="flex items-center gap-1 ml-2">
+                {technologyFilter && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTechnologyFilter('');
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    aria-label="Clear technology filter"
+                  >
+                    ×
+                  </button>
+                )}
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
+              </span>
+            </button>
+            {showTechnologyDropdown && (
+              <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto text-[11px] sm:text-xs">
+                <div className="px-2 py-1 border-b border-slate-100 bg-slate-50">
+                  <input
+                    type="text"
+                    value={technologySearch}
+                    onChange={(e) => setTechnologySearch(e.target.value)}
+                    placeholder="Search tech..."
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-[11px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-purple-300"
+                  />
+                </div>
+                {filteredTechnologyOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setTechnologyFilter(opt);
+                      setShowTechnologyDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 ${
+                      technologyFilter === opt
+                        ? 'bg-sky-100 text-slate-900'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {toTitleCase(opt)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Round searchable dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowRoundDropdown((v) => !v);
+                setShowCompanyDropdown(false);
+                setShowTechnologyDropdown(false);
+                setShowHrDropdown(false);
+              }}
+              className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[110px] justify-between"
+              aria-label="Filter by round"
+            >
+              <span className="truncate">
+                {roundFilter ? toTitleCase(roundFilter) : 'Round'}
+              </span>
+              <span className="flex items-center gap-1 ml-2">
+                {roundFilter && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setRoundFilter('');
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    aria-label="Clear round filter"
+                  >
+                    ×
+                  </button>
+                )}
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
+              </span>
+            </button>
+            {showRoundDropdown && (
+              <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto text-[11px] sm:text-xs">
+                <div className="px-2 py-1 border-b border-slate-100 bg-slate-50">
+                  <input
+                    type="text"
+                    value={roundSearch}
+                    onChange={(e) => setRoundSearch(e.target.value)}
+                    placeholder="Search round..."
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-[11px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-purple-300"
+                  />
+                </div>
+                {filteredRoundOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setRoundFilter(opt);
+                      setShowRoundDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 ${
+                      roundFilter === opt
+                        ? 'bg-sky-100 text-slate-900'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {toTitleCase(opt)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* HR searchable dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowHrDropdown((v) => !v);
+                setShowCompanyDropdown(false);
+                setShowTechnologyDropdown(false);
+                setShowRoundDropdown(false);
+              }}
+              className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[110px] justify-between"
+              aria-label="Filter by HR"
+            >
+              <span className="truncate">
+                {hrFilter ? toTitleCase(hrFilter) : 'HR'}
+              </span>
+              <span className="flex items-center gap-1 ml-2">
+                {hrFilter && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHrFilter('');
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    aria-label="Clear HR filter"
+                  >
+                    ×
+                  </button>
+                )}
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
+              </span>
+            </button>
+            {showHrDropdown && (
+              <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto text-[11px] sm:text-xs">
+                <div className="px-2 py-1 border-b border-slate-100 bg-slate-50">
+                  <input
+                    type="text"
+                    value={hrSearch}
+                    onChange={(e) => setHrSearch(e.target.value)}
+                    placeholder="Search HR..."
+                    className="w-full rounded border border-slate-200 px-2 py-1 text-[11px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-purple-300"
+                  />
+                </div>
+                {filteredHrOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setHrFilter(opt);
+                      setShowHrDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 ${
+                      hrFilter === opt
+                        ? 'bg-sky-100 text-slate-900'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {toTitleCase(opt)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <select
             value={filter}
             onChange={(e) => onChangeFilter(e.target.value)}
@@ -1569,7 +1981,7 @@ function AdminSlotsTable({
           </select>
 
           <div className="relative w-32 sm:w-40">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               type="text"
               placeholder="Search slot"
@@ -1589,43 +2001,43 @@ function AdminSlotsTable({
             <p className="text-sm text-gray-600">Loading slots...</p>
           </div>
         </div>
-      ) : slots.length === 0 ? (
+      ) : dropdownFilteredSlots.length === 0 ? (
         <div className="flex items-center justify-center py-12">
           <p className="text-sm text-gray-500">No slots found</p>
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="min-w-full border-collapse text-xs sm:text-sm">
+          <table className="min-w-full border-collapse text-xs sm:text-sm border border-slate-200">
             <thead>
               <tr className="bg-slate-50 text-slate-600">
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-10">
-                  Sr No.
+                <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200 w-10">
+                  Sr.
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Name
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Company
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
+                  Company Name
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Technology
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200 min-w-[200px]">
+                  HR
+                </th>
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Round
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Created At
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Date
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
-                  Time
-                </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Status
                 </th>
-                <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+                <th className="px-3 py-2 text-center font-semibold border-b border-slate-200">
                   Actions
                 </th>
               </tr>
@@ -1637,10 +2049,10 @@ function AdminSlotsTable({
                 const isRejected = slot.status === 'Rejected';
 
                 const statusIconClass = isApproved
-                  ? 'fa-circle-check text-emerald-500'
+                  ? 'fa-solid fa-circle-check text-emerald-500'
                   : isRejected
-                  ? 'fa-circle-xmark text-red-500'
-                  : 'fa-clock text-amber-500';
+                  ? 'fa-solid fa-circle-xmark text-red-500'
+                  : 'fa-solid fa-clock text-amber-500';
 
                 const statusTextClass = isApproved
                   ? 'text-emerald-600'
@@ -1648,54 +2060,129 @@ function AdminSlotsTable({
                   ? 'text-red-600'
                   : 'text-slate-800';
                 
+                const statusLabel = isApproved
+                  ? 'Approved by Admin'
+                  : isRejected
+                  ? 'Rejected by Admin'
+                  : 'Pending (Admin)';
+
+                const slotDateStr =
+                  slot.date instanceof Date ? slot.date.toISOString().slice(0, 10) : '';
+                const isToday = slotDateStr === new Date().toISOString().slice(0, 10);
+
+                const createdExactRaw = String(slot.createdAtExactLabel || '');
+                const createdParts = createdExactRaw.split(',');
+                const createdDatePart =
+                  (createdParts[0] && createdParts[0].trim()) || slot.createdAtLabel || '-';
+                const createdTimePart =
+                  createdParts.length > 1 && createdParts[1] && createdParts[1].trim()
+                    ? createdParts[1].trim()
+                    : '';
+
                 const slotId = slot.firestoreId || slot.id;
                 return (
                   <tr
                     key={slotId}
-                    className="border-b border-slate-100 hover:bg-slate-50"
+                    className="border-b border-slate-200 hover:bg-slate-50"
                   >
-                    <td className="px-3 py-2 text-slate-700">{index + 1}</td>
-                    <td
-                      className="px-3 py-2 text-purple-600 font-semibold cursor-pointer"
+                    <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
+                      {index + 1}
+                    </td>
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      {slot.candidateName || slot.name ? (
+                        <button
+                          type="button"
                       onClick={() =>
-                        onOpenCandidateSlots && onOpenCandidateSlots(slot.candidateName || slot.name)
+                            onOpenCandidateSlots &&
+                            onOpenCandidateSlots((slot.candidateName || slot.name || '').trim())
                       }
+                          className="text-purple-600 font-semibold hover:text-purple-800 hover:underline focus:outline-none focus:underline"
                     >
                       {slot.candidateName || slot.name}
+                        </button>
+                      ) : (
+                        '-'
+                      )}
                     </td>
-                    <td className="px-3 py-2 text-slate-700">{slot.company}</td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.technology}
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      {slot.company || slot.companyName || '-'}
                     </td>
-                    <td className="px-3 py-2 text-slate-700">{slot.round}</td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.createdAtLabel || slot.createdAt}
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      {slot.technology || '-'}
                     </td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.dateLabel}
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      {(() => {
+                        const hrName = slot.hrName || '';
+                        const hrMobile = slot.hrMobile || (hrs.find((h) => (h.name || '').trim() === (hrName || '').trim())?.mobile ?? '');
+                        const hrEmail = slot.hrEmail || (hrs.find((h) => (h.name || '').trim() === (hrName || '').trim())?.email ?? '');
+
+                        if (!hrName && !hrMobile && !hrEmail) {
+                          return <span className="text-slate-400">-</span>;
+                        }
+
+                        return (
+                          <div className="flex flex-col gap-1">
+                            {hrName && (
+                              <div className="flex items-center gap-1.5">
+                                <i className="fa-solid fa-user-tie text-slate-500 w-3.5" aria-hidden="true" />
+                                <span>{hrName}</span>
+                              </div>
+                            )}
+                            {hrMobile && (
+                              <div className="flex items-center gap-1.5">
+                                <i className="fa-solid fa-phone text-slate-500 w-3.5" aria-hidden="true" />
+                                <span>{hrMobile}</span>
+                              </div>
+                            )}
+                            {hrEmail && (
+                              <div className="flex items-center gap-1.5">
+                                <i className="fa-solid fa-envelope text-slate-500 w-3.5" aria-hidden="true" />
+                                <span className="truncate max-w-[180px]" title={hrEmail}>
+                                  {hrEmail}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
-                    <td className="px-3 py-2 text-slate-700">
-                      {slot.timeLabel}
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      {slot.round || '-'}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
                       <div className="flex flex-col">
-                        <div className="inline-flex items-center gap-2">
-                          <i
-                            className={`fa-solid ${statusIconClass}`}
-                            aria-hidden="true"
-                          />
-                          <span className={`font-semibold ${statusTextClass}`}>
-                            {slot.status}
+                        <span>{createdDatePart || '-'}</span>
+                        {createdTimePart && (
+                          <span className="text-[11px] text-slate-500">
+                            {createdTimePart}
                           </span>
+                        )}
                         </div>
-                        {isApproved && (
-                          <span className="mt-0.5 text-[11px] text-emerald-600">
-                            by Admin
+                    </td>
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      <div className="flex flex-col">
+                        <span>
+                          {slot.dateExactLabel || slot.dateLabel || '-'}
+                          {isToday && (
+                            <span className="text-emerald-600 font-semibold ml-1">
+                              (Today)
                           </span>
+                          )}
+                        </span>
+                        {slot.timeLabel && (
+                          <span className="text-[11px] text-slate-500">{slot.timeLabel}</span>
                         )}
                       </div>
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                      <div className="flex items-center gap-1.5">
+                        <i className={statusIconClass} aria-hidden="true" />
+                        <span className={`text-xs font-semibold ${statusTextClass}`}>
+                          {statusLabel}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-center">
                       {isPending ? (
                         <div className="flex gap-2">
                           <button
@@ -1714,7 +2201,7 @@ function AdminSlotsTable({
                           </button>
                           <button
                             type="button"
-                            className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
                             onClick={() => onDeleteSlot && onDeleteSlot(slotId)}
                             aria-label="Delete"
                           >
@@ -1725,7 +2212,7 @@ function AdminSlotsTable({
                         <div className="flex justify-center">
                           <button
                             type="button"
-                            className="inline-flex h-9 w-10 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
                             onClick={() => onDeleteSlot && onDeleteSlot(slotId)}
                             aria-label="Delete"
                           >
@@ -1741,7 +2228,7 @@ function AdminSlotsTable({
           </table>
         </div>
       )}
-      {!loading && slots.length > 0 && (
+      {!loading && dropdownFilteredSlots.length > 0 && (
         <PaginationBar
           totalItems={totalItems}
           currentPage={currentPage}
@@ -1767,10 +2254,12 @@ function AdminHRsTable({
   onAddHR,
   onUpdateHR,
   onDeleteHR,
+  onOpenCandidateView,
 }) {
   const [companyFilter, setCompanyFilter] = useState('');
   const [techFilter, setTechFilter] = useState('');
   const [jobTypeFilter, setJobTypeFilter] = useState('');
+  const [addedByFilter, setAddedByFilter] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [modalMode, setModalMode] = useState('add'); // 'add' | 'edit'
   const [editingId, setEditingId] = useState(null);
@@ -1785,39 +2274,64 @@ function AdminHRsTable({
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const [showTechDropdown, setShowTechDropdown] = useState(false);
   const [showJobTypeDropdown, setShowJobTypeDropdown] = useState(false);
+  const [showAddedByDropdown, setShowAddedByDropdown] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const [confirmDeleteName, setConfirmDeleteName] = useState('');
 
-  const companyOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(hrs.map((h) => h.company).filter((c) => c && c.trim())),
-      ),
-    [hrs],
-  );
-  const techOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(hrs.map((h) => h.technology).filter((t) => t && t.trim())),
-      ),
-    [hrs],
-  );
-  const jobTypeOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(hrs.map((h) => h.jobType).filter((j) => j && j.trim())),
-      ),
-    [hrs],
-  );
+  const filtersRef = useRef(null);
+
+  // Close HR filter dropdowns when clicking outside the filters area
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (filtersRef.current && !filtersRef.current.contains(event.target)) {
+        setShowCompanyDropdown(false);
+        setShowTechDropdown(false);
+        setShowJobTypeDropdown(false);
+        setShowAddedByDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, []);
+
+  const companyOptions = useMemo(() => {
+    const values = hrs
+      .map((h) => (h.company || '').trim())
+      .filter((c) => c);
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  }, [hrs]);
+  const techOptions = useMemo(() => {
+    const values = hrs
+      .map((h) => (h.technology || '').trim())
+      .filter((t) => t);
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  }, [hrs]);
+  const jobTypeOptions = useMemo(() => {
+    const values = hrs
+      .map((h) => (h.jobType || '').trim())
+      .filter((j) => j);
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  }, [hrs]);
+  const addedByOptions = useMemo(() => {
+    const values = hrs
+      .map((h) => (h.addedBy || '').trim())
+      .filter((v) => v && v.toLowerCase() !== 'admin');
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  }, [hrs]);
 
   const filteredRows = useMemo(() => {
     return hrs.filter((hr) => {
       if (companyFilter && hr.company !== companyFilter) return false;
       if (techFilter && hr.technology !== techFilter) return false;
       if (jobTypeFilter && hr.jobType !== jobTypeFilter) return false;
+      if (addedByFilter && (hr.addedBy || '').trim() !== addedByFilter) return false;
       return true;
     });
-  }, [hrs, companyFilter, techFilter, jobTypeFilter]);
+  }, [hrs, companyFilter, techFilter, jobTypeFilter, addedByFilter]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(20);
@@ -1864,9 +2378,9 @@ function AdminHRsTable({
         <div className="flex items-start">
           <button
             onClick={onBackToHome}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            <ArrowLeftIcon className="w-4 h-4" />
+            <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -1880,7 +2394,7 @@ function AdminHRsTable({
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50"
             aria-label="Refresh"
           >
-            <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+            <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
           </button>
         </div>
 
@@ -1903,7 +2417,7 @@ function AdminHRsTable({
             }}
             className="inline-flex items-center gap-1.5 rounded-md bg-lime-500 px-3 sm:px-4 py-1.5 text-[11px] sm:text-sm font-semibold text-white shadow hover:bg-lime-600 whitespace-nowrap"
           >
-            <PlusIcon className="w-4 h-4" />
+            <i className="fa-solid fa-plus w-4 h-4" aria-hidden="true" />
             <span>Add HR</span>
           </button>
         </div>
@@ -1920,7 +2434,10 @@ function AdminHRsTable({
         </div>
 
         {/* Right: filters row */}
-        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 w-full sm:w-auto">
+        <div
+          className="flex flex-wrap items-center justify-end gap-2 sm:gap-3 w-full sm:w-auto"
+          ref={filtersRef}
+        >
           {/* Company filter dropdown pill */}
           <div className="relative">
             <button
@@ -1929,11 +2446,12 @@ function AdminHRsTable({
                 setShowCompanyDropdown((v) => !v);
                 setShowTechDropdown(false);
                 setShowJobTypeDropdown(false);
+                setShowAddedByDropdown(false);
               }}
               className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[90px] justify-between"
             >
               <span className="truncate">
-                {companyFilter || 'Company'}
+                {companyFilter ? toTitleCase(companyFilter) : 'Company'}
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {companyFilter && (
@@ -1949,7 +2467,7 @@ function AdminHRsTable({
                     ×
                   </button>
                 )}
-                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" />
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
             </button>
             {showCompanyDropdown && (
@@ -1968,7 +2486,7 @@ function AdminHRsTable({
                         : 'hover:bg-slate-50 text-slate-700'
                     }`}
                   >
-                    {opt}
+                    {toTitleCase(opt)}
                   </button>
                 ))}
               </div>
@@ -1983,11 +2501,12 @@ function AdminHRsTable({
                 setShowTechDropdown((v) => !v);
                 setShowCompanyDropdown(false);
                 setShowJobTypeDropdown(false);
+                setShowAddedByDropdown(false);
               }}
               className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[110px] justify-between"
             >
               <span className="truncate">
-                {techFilter || 'Technology'}
+                {techFilter ? toTitleCase(techFilter) : 'Technology'}
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {techFilter && (
@@ -2003,7 +2522,7 @@ function AdminHRsTable({
                     ×
                   </button>
                 )}
-                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" />
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
             </button>
             {showTechDropdown && (
@@ -2022,7 +2541,7 @@ function AdminHRsTable({
                         : 'hover:bg-slate-50 text-slate-700'
                     }`}
                   >
-                    {opt}
+                    {toTitleCase(opt)}
                   </button>
                 ))}
               </div>
@@ -2037,11 +2556,12 @@ function AdminHRsTable({
                 setShowJobTypeDropdown((v) => !v);
                 setShowCompanyDropdown(false);
                 setShowTechDropdown(false);
+                setShowAddedByDropdown(false);
               }}
               className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[100px] justify-between"
             >
               <span className="truncate">
-                {jobTypeFilter || 'Job Type'}
+                {jobTypeFilter ? toTitleCase(jobTypeFilter) : 'Job Type'}
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {jobTypeFilter && (
@@ -2057,7 +2577,7 @@ function AdminHRsTable({
                     ×
                   </button>
                 )}
-                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" />
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
             </button>
             {showJobTypeDropdown && (
@@ -2076,7 +2596,62 @@ function AdminHRsTable({
                         : 'hover:bg-slate-50 text-slate-700'
                     }`}
                   >
-                    {opt}
+                    {toTitleCase(opt)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Added By filter dropdown pill */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowAddedByDropdown((v) => !v);
+                setShowCompanyDropdown(false);
+                setShowTechDropdown(false);
+                setShowJobTypeDropdown(false);
+              }}
+              className="flex items-center rounded-md border border-slate-200 bg-white px-3 py-1 text-[11px] sm:text-xs text-slate-700 min-w-[100px] justify-between"
+            >
+              <span className="truncate">
+                {addedByFilter ? toTitleCase(addedByFilter) : 'Added By'}
+              </span>
+              <span className="flex items-center gap-1 ml-2">
+                {addedByFilter && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAddedByFilter('');
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    aria-label="Clear added by filter"
+                  >
+                    ×
+                  </button>
+                )}
+                <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
+              </span>
+            </button>
+            {showAddedByDropdown && (
+              <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto text-[11px] sm:text-xs">
+                {addedByOptions.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    onClick={() => {
+                      setAddedByFilter(opt);
+                      setShowAddedByDropdown(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 ${
+                      addedByFilter === opt
+                        ? 'bg-sky-100 text-slate-900'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    {toTitleCase(opt)}
                   </button>
                 ))}
               </div>
@@ -2085,7 +2660,7 @@ function AdminHRsTable({
 
           {/* Search box */}
           <div className="relative w-40 sm:w-52">
-            <MagnifyingGlassIcon className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <i className="fa-solid fa-magnifying-glass pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" aria-hidden="true" />
             <input
               type="text"
               placeholder="Search HRs"
@@ -2097,33 +2672,33 @@ function AdminHRsTable({
         </div>
       </div>
 
-      {/* HRs table */}
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-full border-collapse text-xs sm:text-sm">
+      {/* HRs table - styled like Candidates table card */}
+      <div className="overflow-x-auto">
+        <table className="min-w-full border-collapse text-xs sm:text-sm border border-slate-200">
           <thead>
-            <tr className="bg-slate-100 text-slate-700">
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200 w-12">
-                Sr No.
+            <tr className="bg-slate-50 text-slate-600">
+              <th className="px-3 py-2 text-center font-semibold border-b border-r border-slate-200 w-10">
+                Sr.
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Name
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Email
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Mobile
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Company
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Technology
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Job Type
               </th>
-              <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
+              <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                 Added By
               </th>
               <th className="px-3 py-2 text-left font-semibold border-b border-slate-200">
@@ -2137,16 +2712,42 @@ function AdminHRsTable({
                 key={hr.id}
                 className="border-b border-slate-100 hover:bg-slate-50"
               >
-                <td className="px-3 py-2 text-slate-700">{startIdx + index + 1}</td>
-                <td className="px-3 py-2 text-slate-800">{hr.name}</td>
-                <td className="px-3 py-2 text-slate-700">{hr.email}</td>
-                <td className="px-3 py-2 text-slate-700">{hr.mobile}</td>
-                <td className="px-3 py-2 text-slate-700">{hr.company}</td>
-                <td className="px-3 py-2 text-slate-700">{hr.technology}</td>
-                <td className="px-3 py-2 text-slate-700">{hr.jobType}</td>
-                <td className="px-3 py-2 text-slate-700">{hr.addedBy}</td>
+                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
+                  {startIdx + index + 1}
+                </td>
+                <td className="px-3 py-2 text-slate-800 border-r border-slate-200">
+                  {hr.name}
+                </td>
+                <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                  {hr.email}
+                </td>
+                <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                  {hr.mobile}
+                </td>
+                <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                  {hr.company}
+                </td>
+                <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                  {hr.technology}
+                </td>
+                <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                  {hr.jobType}
+                </td>
+                <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
+                  {onOpenCandidateView && hr.addedBy && hr.addedBy !== 'Admin' ? (
+                    <button
+                      type="button"
+                      onClick={() => onOpenCandidateView(hr.addedBy)}
+                      className="text-purple-600 font-semibold hover:text-purple-800 hover:underline focus:outline-none focus:underline"
+                    >
+                      {hr.addedBy}
+                    </button>
+                  ) : (
+                    hr.addedBy || '–'
+                  )}
+                </td>
                 <td className="px-3 py-2">
-                  <div className="flex gap-1">
+                  <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => {
@@ -2162,14 +2763,14 @@ function AdminHRsTable({
                         });
                         setShowAddModal(true);
                       }}
-                      className="h-7 w-7 rounded bg-amber-400 text-white text-xs font-semibold hover:bg-amber-500 flex items-center justify-center"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded bg-amber-400 text-white hover:bg-amber-500"
                       aria-label="Edit HR"
                     >
                       <i className="fa-solid fa-pen" aria-hidden="true" />
                     </button>
                     <button
                       type="button"
-                      className="h-7 w-7 rounded bg-red-500 text-white text-xs font-semibold hover:bg-red-600 flex items-center justify-center"
+                      className="inline-flex h-9 w-9 items-center justify-center rounded bg-red-500 text-white hover:bg-red-600"
                       onClick={() => {
                         setConfirmDeleteId(hr.id);
                         setConfirmDeleteName(hr.name || '');
@@ -2240,9 +2841,16 @@ function AdminHRsTable({
 
       {/* Add HR modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/30"
+          onClick={() => setShowAddModal(false)}
+          onKeyDown={(e) => e.key === 'Escape' && setShowAddModal(false)}
+          role="dialog"
+          aria-modal="true"
+        >
           <form
             onSubmit={handleSubmit}
+            onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-lg rounded-xl bg-white shadow-lg px-6 py-5"
           >
             {/* Modal header */}
@@ -2253,10 +2861,10 @@ function AdminHRsTable({
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"
                 aria-label="Close"
               >
-                ×
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
               </button>
             </div>
 
@@ -2265,7 +2873,7 @@ function AdminHRsTable({
               {/* Row 1: HR Name | Technology */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  * HR Name
+                  <span className="text-red-500">*</span> HR Name
                 </label>
                 <input
                   type="text"
@@ -2278,7 +2886,7 @@ function AdminHRsTable({
 
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  * Technology
+                  <span className="text-red-500">*</span> Technology
                 </label>
                 <select
                   value={form.technology}
@@ -2297,7 +2905,7 @@ function AdminHRsTable({
               {/* Row 2: Email | Mobile */}
               <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-700">
-                  * Email
+                  <span className="text-red-500">*</span> Email
                 </label>
                 <input
                   type="email"
@@ -2321,15 +2929,15 @@ function AdminHRsTable({
                 />
               </div>
 
-              {/* Row 3: Job Type (full width on md) */}
-              <div className="flex flex-col gap-1 md:col-span-2">
+              {/* Row 3: Job Type (same as email field) */}
+              <div className="flex flex-col gap-1">
                 <label className="text-xs font-semibold text-slate-700">
                   Job Type
                 </label>
                 <select
                   value={form.jobType}
                   onChange={handleChange('jobType')}
-                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
                 >
                   <option value="">Select Job Type</option>
                   {jobTypeOptions.map((opt) => (
@@ -2373,12 +2981,7 @@ function AdminHRsTable({
                     : 'bg-lime-500 hover:bg-lime-600'
                 }`}
               >
-                <i
-                  className={`fa-solid ${
-                    modalMode === 'edit' ? 'fa-pen' : 'fa-plus'
-                  } text-xs`}
-                  aria-hidden="true"
-                />
+                <i className={`fa-solid ${modalMode === 'edit' ? 'fa-pen' : 'fa-plus'} text-xs`} aria-hidden="true" />
                 {modalMode === 'edit' ? 'Update HR' : 'Add New HR'}
               </button>
             </div>
@@ -2401,23 +3004,49 @@ function AdminCandidateSlotsView({ data, onBack }) {
   const referredBy = candidate?.referredBy || 'Viraj Kadam Sir';
   const totalCount = slots.length || 0;
 
+  const ROUND_LABELS = [
+    'Technical Round 1',
+       'Technical Round 2',
+    'Technical Round 3',
+    'Manageral Round',
+    'HR Round',
+    'Task Assesment',
+  ];
+
+  const roundCounts = useMemo(() => {
+    const counts = {};
+    slots.forEach((slot) => {
+      const round = String(slot.round || '').trim();
+      if (!round) return;
+      counts[round] = (counts[round] || 0) + 1;
+    });
+    return counts;
+  }, [slots]);
+
   return (
     <div className="bg-white rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6">
-      {/* Header row: back, title center, referred by right */}
+      {/* Header row: back, title + reload center, referred by right */}
       <div className="flex items-center justify-between mb-4 gap-3">
         <div className="flex items-center">
           <button
             onClick={onBack}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            <ArrowLeftIcon className="w-4 h-4" />
+            <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="flex-1 text-center">
+        <div className="flex-1 flex items-center justify-center gap-2">
           <span className="text-xs sm:text-sm font-semibold text-purple-600">
             Slot Book By {name}
           </span>
+          <button
+            type="button"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+            aria-label="Reload candidate slots"
+          >
+            <i className="fa-solid fa-rotate-right text-xs" aria-hidden="true" />
+          </button>
         </div>
 
         <div className="text-[11px] sm:text-xs text-slate-600 whitespace-nowrap">
@@ -2426,8 +3055,60 @@ function AdminCandidateSlotsView({ data, onBack }) {
         </div>
       </div>
 
-      {/* Slots cards grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {/* Summary: all in one row, each with value centered above label */}
+      <div className="mb-4 flex flex-row flex-wrap items-stretch gap-4 sm:gap-6 text-slate-700">
+        <div className="flex flex-col items-center text-center min-w-[120px]">
+          <span className="text-sm font-semibold text-slate-800">{payment}</span>
+          <span className="text-[11px] text-slate-500">Payment</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[120px]">
+          <span className="text-sm font-semibold text-slate-800">{experience}</span>
+          <span className="text-[11px] text-slate-500">Experience</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[140px]">
+          <span className="text-sm font-semibold text-slate-800">{totalCount}</span>
+          <span className="text-[11px] text-slate-500">Total Slots Booked</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[140px]">
+          <span className="text-sm font-semibold text-slate-800">
+            {roundCounts['Technical Round 1'] || 0}
+          </span>
+          <span className="text-[11px] text-slate-500">Technical Round 1</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[140px]">
+          <span className="text-sm font-semibold text-slate-800">
+            {roundCounts['Technical Round 2'] || 0}
+          </span>
+          <span className="text-[11px] text-slate-500">Technical Round 2</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[140px]">
+          <span className="text-sm font-semibold text-slate-800">
+            {roundCounts['Technical Round 3'] || 0}
+          </span>
+          <span className="text-[11px] text-slate-500">Technical Round 3</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[140px]">
+          <span className="text-sm font-semibold text-slate-800">
+            {roundCounts['Manageral Round'] || 0}
+          </span>
+          <span className="text-[11px] text-slate-500">Manageral Round</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[140px]">
+          <span className="text-sm font-semibold text-slate-800">
+            {roundCounts['HR Round'] || 0}
+          </span>
+          <span className="text-[11px] text-slate-500">HR Round</span>
+        </div>
+        <div className="flex flex-col items-center text-center min-w-[140px]">
+          <span className="text-sm font-semibold text-slate-800">
+            {roundCounts['Task Assesment'] || 0}
+          </span>
+          <span className="text-[11px] text-slate-500">Task Assesment</span>
+        </div>
+      </div>
+
+      {/* Slots cards: 4-column grid on large screens */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {slots.map((slot) => {
           const isApproved = slot.status === 'Approved';
           const isRejected = slot.status === 'Rejected';
@@ -2437,10 +3118,12 @@ function AdminCandidateSlotsView({ data, onBack }) {
               key={slot.id}
               className="rounded-xl border border-slate-200 bg-white shadow-sm px-4 py-3 text-xs sm:text-sm text-slate-700 flex flex-col gap-1.5"
             >
-              <div className="font-semibold text-slate-900">
-                {slot.company}
-              </div>
+              <div className="flex justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div>
+                    <div className="font-semibold text-slate-900">{slot.company}</div>
               <div className="text-[11px] text-slate-500">Company</div>
+                  </div>
 
               <div className="mt-1">
                 <div className="text-slate-800">{slot.technology}</div>
@@ -2450,9 +3133,11 @@ function AdminCandidateSlotsView({ data, onBack }) {
               <div className="mt-1">
                 <div className="text-slate-800">{slot.round}</div>
                 <div className="text-[11px] text-slate-500">Round</div>
+                  </div>
               </div>
 
-              <div className="mt-1 flex items-center gap-2">
+                <div className="flex-shrink-0 text-right">
+                  <div className="flex items-center justify-end gap-2">
                 <span className="h-2 w-2 rounded-full bg-emerald-500" />
                 <span className="text-emerald-600 font-semibold">
                   {isApproved
@@ -2462,16 +3147,11 @@ function AdminCandidateSlotsView({ data, onBack }) {
                     : 'Pending'}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-500 -mt-1">Status</div>
-
-              <div className="mt-1">
-                <div className="text-slate-800">{slot.dateLabel}</div>
-                <div className="text-[11px] text-slate-500">Date</div>
-              </div>
-
-              <div className="mt-1">
+                  <div className="text-[11px] text-slate-500">Status</div>
+                  <div className="text-slate-800 mt-1">{slot.dateLabel}</div>
                 <div className="text-slate-800">{slot.timeLabel}</div>
-                <div className="text-[11px] text-slate-500">Time</div>
+                  <div className="text-[11px] text-slate-500">Date & Time</div>
+                </div>
               </div>
             </div>
           );
@@ -2487,33 +3167,41 @@ function AdminLeavesTable({ onBackToHome }) {
   const [leaves, setLeaves] = useState([]);
   const leaveDateInputRef = useRef(null);
 
+  useEffect(() => {
+    let cancelled = false;
+    getLeaves().then((list) => {
+      if (!cancelled) setLeaves(list);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   const formatLeaveDate = (isoDate) => {
     if (!isoDate) return '';
-    const d = new Date(isoDate);
+    const d = new Date(isoDate + 'T00:00:00');
     if (Number.isNaN(d.getTime())) return isoDate;
-    return d.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    return formatDateDDMMYYYY(d);
   };
 
-  const handleSaveLeave = () => {
+  const handleSaveLeave = async () => {
     if (!leaveDate) return;
-    setLeaves((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        date: formatLeaveDate(leaveDate),
-      },
-    ]);
+    const dateLabel = formatLeaveDate(leaveDate);
+    try {
+      const id = await addLeaveToFirestore(leaveDate, dateLabel);
+      setLeaves((prev) => [...prev, { id, date: leaveDate, dateLabel }]);
     setLeaveDate('');
     setShowAddLeave(false);
+    } catch (err) {
+      console.error('Failed to add leave:', err);
+    }
   };
 
-  const handleDeleteLeave = (id) => {
+  const handleDeleteLeave = async (id) => {
+    try {
+      await deleteLeaveFromFirestore(id);
     setLeaves((prev) => prev.filter((l) => l.id !== id));
+    } catch (err) {
+      console.error('Failed to delete leave:', err);
+    }
   };
 
   const [currentPage, setCurrentPage] = useState(1);
@@ -2534,9 +3222,9 @@ function AdminLeavesTable({ onBackToHome }) {
         <div className="flex items-center">
           <button
             onClick={onBackToHome}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-400 text-white shadow-sm hover:bg-slate-500"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-white border border-slate-200 text-slate-700 shadow-sm hover:bg-slate-100"
           >
-            <ArrowLeftIcon className="w-4 h-4" />
+            <i className="fa-solid fa-arrow-left w-4 h-4" aria-hidden="true" />
           </button>
         </div>
 
@@ -2553,7 +3241,7 @@ function AdminLeavesTable({ onBackToHome }) {
               // simple refresh: no-op for now
             }}
           >
-            <i className="fa-solid fa-rotate-right" aria-hidden="true" />
+            <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
           </button>
         </div>
 
@@ -2564,7 +3252,7 @@ function AdminLeavesTable({ onBackToHome }) {
             onClick={() => setShowAddLeave(true)}
             className="inline-flex items-center gap-2 rounded-md bg-lime-500 px-3 sm:px-4 py-2 text-[11px] sm:text-sm font-semibold text-white shadow hover:bg-lime-600 whitespace-nowrap"
           >
-            <PlusIcon className="w-4 h-4" />
+            <i className="fa-solid fa-plus w-4 h-4" aria-hidden="true" />
             Add Leave
           </button>
         </div>
@@ -2600,7 +3288,7 @@ function AdminLeavesTable({ onBackToHome }) {
                   }`}
                 >
                   <td className="px-4 py-3 text-slate-700">
-                    {leave.date}
+                    {leave.dateLabel || leave.date}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
@@ -2632,8 +3320,14 @@ function AdminLeavesTable({ onBackToHome }) {
       />
       {/* Add Leave modal */}
       {showAddLeave && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
-          <div className="relative w-full max-w-sm rounded-xl bg-white shadow-lg px-5 py-4">
+        <div
+          className="fixed inset-0 z-40 flex items-center justify-center bg-black/30"
+          onClick={() => setShowAddLeave(false)}
+        >
+          <div
+            className="relative w-full max-w-sm rounded-xl bg-white shadow-lg px-5 py-4"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal header */}
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-semibold text-slate-800">
@@ -2642,44 +3336,26 @@ function AdminLeavesTable({ onBackToHome }) {
               <button
                 type="button"
                 onClick={() => setShowAddLeave(false)}
-                className="text-slate-400 hover:text-slate-600"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300"
                 aria-label="Close"
               >
-                ×
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
               </button>
             </div>
 
-            {/* Date field with Font Awesome calendar icon */}
+            {/* Date field - native calendar icon only (right side) */}
             <div className="mb-4">
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 Date
               </label>
-              <div className="relative">
                 <input
                   type="date"
                   value={leaveDate}
                   onChange={(e) => setLeaveDate(e.target.value)}
                   ref={leaveDateInputRef}
-                  className="w-full rounded-md border border-slate-200 bg-white pl-3 pr-9 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                className="add-leave-date w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-200"
                   placeholder="mm/dd/yyyy"
                 />
-                <button
-                  type="button"
-                  className="absolute inset-y-0 right-2 flex items-center text-slate-400 hover:text-slate-600"
-                  onClick={() => {
-                    if (leaveDateInputRef.current) {
-                      if (typeof leaveDateInputRef.current.showPicker === 'function') {
-                        leaveDateInputRef.current.showPicker();
-                      } else {
-                        leaveDateInputRef.current.focus();
-                      }
-                    }
-                  }}
-                  aria-label="Open calendar"
-                >
-                  <i className="fa-regular fa-calendar-days text-sm" aria-hidden="true" />
-                </button>
-              </div>
             </div>
 
             {/* Modal actions */}
@@ -2706,57 +3382,154 @@ function AdminLeavesTable({ onBackToHome }) {
   );
 }
 
-// Very simple bar graph for Statistics tab using demo data
-function AdminStatisticsChart() {
-  const stats = SIMPLE_MONTHLY_STATS;
+// Bar graph for Statistics tab – Y-axis rotated "Total Slots", fixed 0–60 scale like reference, grid, x-axis month labels
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const CHART_BODY_HEIGHT = 200;
+const Y_AXIS_MAX = 60; // Fixed scale 0–60 so axis always matches reference screenshot
+const Y_TICKS = [0, 10, 20, 30, 40, 50, 60];
 
-  const maxValue = stats.reduce(
-    (max, item) => (item.value > max ? item.value : max),
-    0,
-  );
+function AdminStatisticsChart({ slots = [], onReload }) {
+  const monthlyStats = useMemo(() => {
+    const getSlotDate = (slot) => {
+      const raw = slot.date;
+      if (!raw) return null;
+      const d = raw?.toDate ? raw.toDate() : new Date(raw);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+    const now = new Date();
+    const months = [];
+    for (let i = 13; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const count = slots.filter((s) => {
+        const slotD = getSlotDate(s);
+        return slotD && slotD.getFullYear() === year && slotD.getMonth() === month;
+      }).length;
+      months.push({
+        label: `${MONTH_LABELS[month]} ${year}`,
+        value: count,
+      });
+    }
+    return months;
+  }, [slots]);
+
+  const [hoveredIndex, setHoveredIndex] = useState(null);
 
   return (
     <div className="bg-white rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6">
+      <div className="flex items-center justify-center gap-2">
       <h2 className="text-sm sm:text-base font-semibold text-slate-800">
         Monthly Slot Statistics
       </h2>
-      <p className="mt-1 text-[11px] sm:text-xs text-slate-500">
-        Showing recent statistics
-      </p>
+        {typeof onReload === 'function' && (
+          <button
+            type="button"
+            onClick={onReload}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 flex-shrink-0"
+            aria-label="Reload statistics"
+          >
+            <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
+          </button>
+        )}
+      </div>
 
       <div className="mt-5 overflow-x-auto">
-        <div className="min-w-[640px]">
-          <div className="relative h-64 rounded-xl border border-slate-100 bg-white overflow-hidden">
-            {/* Soft horizontal bands behind bars */}
-            <div className="absolute inset-0 flex flex-col">
-              {[0, 1, 2].map((idx) => (
-                <div
-                  key={idx}
-                  className={idx % 2 === 0 ? 'flex-1 bg-slate-50' : 'flex-1 bg-white'}
-                />
+        <div className="min-w-[720px] flex gap-0">
+          {/* Y-axis: rotated "Total Slots" + tick labels 0, 10, 20, ... 60 */}
+          <div
+            className="flex items-stretch shrink-0 pr-2"
+            style={{ height: CHART_BODY_HEIGHT }}
+          >
+            {/* Rotated label – 90° counter-clockwise, vertical on left */}
+            <div
+              className="flex items-center justify-center shrink-0"
+              style={{ width: 28 }}
+            >
+              <span
+                className="text-[11px] text-slate-600 font-medium whitespace-nowrap"
+                style={{
+                  transform: 'rotate(-90deg)',
+                  transformOrigin: 'center center',
+                }}
+              >
+                Total Slots
+              </span>
+            </div>
+            {/* Tick labels aligned with grid: 0, 10, 20, 30, 40, 50, 60 */}
+            <div
+              className="flex flex-col justify-between py-0 shrink-0 pl-1"
+              style={{ height: CHART_BODY_HEIGHT }}
+            >
+              {[...Y_TICKS].reverse().map((tick) => (
+                <span key={tick} className="text-[10px] text-slate-500 tabular-nums">
+                  {tick}
+                </span>
               ))}
             </div>
+            </div>
 
-            {/* Bars */}
-            <div className="relative z-10 flex h-full items-end px-6 pb-8 gap-4">
-              {stats.map((item) => {
-                // Use fixed pixel heights so bars are always visible
-                const barHeight = item.value * 4; // 0–50 -> 0–200px
+          {/* Chart area: horizontal grid lines at each tick + bars */}
+          <div className="flex-1 min-w-0 flex flex-col border-l border-slate-200 pl-3">
+            <div
+              className="relative rounded-r-lg overflow-visible"
+              style={{ height: CHART_BODY_HEIGHT }}
+            >
+              {/* Horizontal grid lines at 0, 10, 20, 30, 40, 50, 60 – light grey across full width */}
+              <div className="absolute inset-0 flex flex-col pointer-events-none">
+                {Y_TICKS.slice(1).reverse().map((_, i) => (
+                  <div key={i} className="flex-1 border-t border-slate-200" />
+                ))}
+                <div className="flex-shrink-0 border-t border-slate-200" style={{ height: 0 }} />
+              </div>
+
+              {/* Bars – height scaled to fixed 0..60 scale + hover tooltip */}
+              <div
+                className="relative z-10 flex h-full items-end gap-0.5 w-full"
+                style={{ height: CHART_BODY_HEIGHT }}
+              >
+                {monthlyStats.map((item, index) => {
+                  const barHeight =
+                    Y_AXIS_MAX > 0
+                      ? (item.value / Y_AXIS_MAX) * CHART_BODY_HEIGHT
+                      : 0;
+                  const isHovered = hoveredIndex === index;
                 return (
                   <div
                     key={item.label}
-                    className="flex-1 min-w-[40px] flex flex-col items-center justify-end"
-                  >
-                    <div
-                      className="w-6 rounded-t-md bg-indigo-400"
-                      style={{ height: `${barHeight}px` }}
-                    />
-                    <div className="mt-2 text-[10px] text-slate-500 text-center whitespace-nowrap">
-                      {item.label}
-                    </div>
+                      className="flex-1 min-w-0 flex flex-col items-center justify-end relative group"
+                      onMouseEnter={() => setHoveredIndex(index)}
+                      onMouseLeave={() => setHoveredIndex(null)}
+                    >
+                      {isHovered && (
+                        <div
+                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1.5 rounded-md bg-slate-800 text-white text-xs font-medium whitespace-nowrap z-20 shadow-lg"
+                          role="tooltip"
+                        >
+                          {item.label}: {item.value} slot{item.value !== 1 ? 's' : ''}
+                        </div>
+                      )}
+                      <div
+                        className={`w-full max-w-[22px] rounded-t bg-indigo-500 ${isHovered ? 'ring-2 ring-indigo-300 ring-offset-1' : ''}`}
+                        style={{ height: `${Math.max(2, barHeight)}px`, minWidth: 14 }}
+                      />
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+            {/* X-axis: month labels centered under each bar, no axis label */}
+            <div className="flex w-full pt-2 gap-0.5">
+              {monthlyStats.map((item) => (
+                <div
+                  key={item.label}
+                  className="flex-1 min-w-0 text-[10px] text-slate-500 text-center whitespace-nowrap"
+                  style={{ minWidth: 14 }}
+                >
+                  {item.label}
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -2768,10 +3541,16 @@ function AdminStatisticsChart() {
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('home');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [candidateFilter, setCandidateFilter] = useState('all');
+  const [candidateFilter, setCandidateFilter] = useState('unselected');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [candidates, setCandidates] = useState(MOCK_CANDIDATES);
   const [showHrSuccessToast, setShowHrSuccessToast] = useState(false);
+  const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const adminTodayLabel = new Date().toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
 
   // Load candidates from Firestore on mount (and avoid duplicates by mobile)
   useEffect(() => {
@@ -2781,8 +3560,8 @@ export default function AdminDashboard() {
         const querySnapshot = await getDocs(q);
         const docs = [];
 
-        querySnapshot.forEach((doc) => {
-          docs.push({ id: doc.id, ...doc.data() });
+        querySnapshot.forEach((docSnap) => {
+          docs.push({ id: docSnap.id, ...docSnap.data() });
         });
 
         if (docs.length === 0) return;
@@ -2800,6 +3579,7 @@ export default function AdminDashboard() {
             maxId += 1;
             additions.push({
               id: maxId,
+              firestoreId: data.id, // keep Firestore user document id
               name: data.name || 'New Candidate',
               mobile: data.mobile || '',
               experience: data.experience || '0',
@@ -2897,8 +3677,31 @@ export default function AdminDashboard() {
   const [slotFilter, setSlotFilter] = useState('all');
   const [slotSearch, setSlotSearch] = useState('');
   const [slots, setSlots] = useState(MOCK_SLOTS);
-  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsLoading, setSlotsLoading] = useState(true);
   const [slotsError, setSlotsError] = useState(null);
+  const [statsRefreshKey, setStatsRefreshKey] = useState(0);
+
+  // Load slots from Firestore (candidate bookings appear here as pending requests)
+  useEffect(() => {
+    setSlotsLoading(true);
+    setSlotsError(null);
+    const slotsRef = collection(db, 'slots');
+    const q = query(slotsRef, orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const uiSlots = slotsSnapshotToUI(snapshot);
+        setSlots(uiSlots);
+        setSlotsLoading(false);
+      },
+      (err) => {
+        console.error('Error loading slots:', err);
+        setSlotsError(err);
+        setSlotsLoading(false);
+      },
+    );
+    return () => unsubscribe();
+  }, [statsRefreshKey]);
   const [selectedSlotsCandidate, setSelectedSlotsCandidate] = useState(null);
   const [selectedViewCandidate, setSelectedViewCandidate] = useState(null);
   const [editingCandidate, setEditingCandidate] = useState(null);
@@ -2922,7 +3725,7 @@ export default function AdminDashboard() {
   }, [slots, slotFilter, slotSearch]);
 
   const filteredCandidates = useMemo(() => {
-    return candidates.filter((c) => {
+    const filtered = candidates.filter((c) => {
       if (candidateFilter === 'selected' && !c.selected) return false;
       if (candidateFilter === 'unselected' && c.selected) return false;
       if (candidateFilter === 'anil_sir') {
@@ -2949,6 +3752,12 @@ export default function AdminDashboard() {
       }
       return true;
     });
+    // Sort by id descending so newly added candidates (higher id) appear on top
+    return [...filtered].sort((a, b) => {
+      const idA = typeof a.id === 'number' ? a.id : parseInt(a.id, 10) || 0;
+      const idB = typeof b.id === 'number' ? b.id : parseInt(b.id, 10) || 0;
+      return idB - idA;
+    });
   }, [candidates, candidateFilter, candidateSearch]);
 
   const filteredHRs = useMemo(() => {
@@ -2968,16 +3777,10 @@ export default function AdminDashboard() {
     [slots],
   );
 
-  const latestPendingRequest = useMemo(() => {
-    const pending = slots.filter((s) => s.status === 'pending');
-    if (pending.length === 0) return null;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const todaysPending = pending.filter((s) => s.date === todayStr);
-    if (todaysPending.length > 0) {
-      return todaysPending[0];
-    }
-    return pending[0];
-  }, [slots]);
+  const pendingSlots = useMemo(
+    () => slots.filter((s) => s.status === 'pending' || s.status === 'Pending'),
+    [slots],
+  );
 
   const handleToggleStatus = (id) => {
     setCandidates((prev) =>
@@ -2989,8 +3792,36 @@ export default function AdminDashboard() {
     );
   };
 
-  const handleDeleteCandidate = (id) => {
+  const handleDeleteCandidate = async (id) => {
+    try {
+      const candidate = candidates.find((c) => c.id === id);
+      if (!candidate) {
+        return;
+      }
+
+      // Remove from local state immediately
     setCandidates((prev) => prev.filter((c) => c.id !== id));
+
+      // Delete from Firestore "users" collection
+      if (candidate.firestoreId) {
+        await deleteDoc(doc(db, 'users', candidate.firestoreId));
+      } else if (candidate.mobile) {
+        // Fallback: look up by mobile if we don't have firestoreId
+        const q = query(
+          collection(db, 'users'),
+          where('mobile', '==', candidate.mobile),
+        );
+        const snap = await getDocs(q);
+        const batchDeletions = [];
+        snap.forEach((docSnap) => {
+          batchDeletions.push(deleteDoc(doc(db, 'users', docSnap.id)));
+        });
+        await Promise.all(batchDeletions);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to delete candidate:', err);
+    }
   };
 
   const handleViewCandidate = (id) => {
@@ -3040,12 +3871,46 @@ export default function AdminDashboard() {
   };
 
   const slotStats = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const fourWeeksAgo = new Date(now.getTime() - 28 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    const getSlotDate = (slot) => {
+      const raw = slot.date;
+      if (!raw) return null;
+      const d = raw?.toDate ? raw.toDate() : new Date(raw);
+      return Number.isNaN(d.getTime()) ? null : d;
+    };
+
+    const lastWeek = slots.filter((s) => {
+      const d = getSlotDate(s);
+      return d && d >= oneWeekAgo && d < now;
+    }).length;
+    const thisWeek = slots.filter((s) => {
+      const d = getSlotDate(s);
+      return d && d >= startOfToday;
+    }).length;
+    const recentFourWeeks = slots.filter((s) => {
+      const d = getSlotDate(s);
+      return d && d >= fourWeeksAgo;
+    }).length;
+    const recentThirtyDays = slots.filter((s) => {
+      const d = getSlotDate(s);
+      return d && d >= thirtyDaysAgo;
+    }).length;
+
     const total = slots.length;
-    const pending = slots.filter((s) => s.status === 'pending').length;
+    const pending = slots.filter((s) => s.status === 'pending' || s.status === 'Pending').length;
     const approved = slots.filter((s) => s.status === 'Approved').length;
     const rejected = slots.filter((s) => s.status === 'Rejected').length;
     return {
       total,
+      lastWeek,
+      thisWeek,
+      avgPerWeek: Math.round((recentFourWeeks / 4) * 10) / 10,
+      avgPerDay: Math.round((recentThirtyDays / 30) * 10) / 10,
       pending,
       approved,
       rejected,
@@ -3074,7 +3939,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <AdminHeader />
+      <AdminHeader activeTab={activeTab} onChangeTab={setActiveTab} />
       <AdminTopNav
         activeTab={activeTab}
         onChange={setActiveTab}
@@ -3105,7 +3970,7 @@ export default function AdminDashboard() {
                   status: 'Active',
                   selected: false,
                 };
-                setCandidates((prev) => [...prev, newCandidate]);
+                setCandidates((prev) => [newCandidate, ...prev]);
                 setShowAddForm(false);
               }}
             />
@@ -3153,6 +4018,7 @@ export default function AdminDashboard() {
           ) : (
             <AdminCandidatesTable
               candidates={filteredCandidates}
+              slots={slots}
               filter={candidateFilter}
               search={candidateSearch}
               onBackToHome={() => setActiveTab('home')}
@@ -3182,6 +4048,7 @@ export default function AdminDashboard() {
               onApproveSlot={handleApproveSlot}
               onRejectSlot={handleRejectSlot}
               onDeleteSlot={handleDeleteSlot}
+              hrs={hrs}
               loading={slotsLoading}
               error={slotsError}
               stats={slotStats}
@@ -3208,6 +4075,22 @@ export default function AdminDashboard() {
             onBackToHome={() => setActiveTab('home')}
             onChangeSearch={setHrSearch}
             onDeleteHR={handleDeleteHR}
+            onOpenCandidateView={(addedByName) => {
+              const candidate = candidates.find(
+                (c) => (c.name || '').trim().toLowerCase() === (addedByName || '').trim().toLowerCase(),
+              );
+              if (candidate) {
+                const candidateSlots = slots.filter(
+                  (s) => (s.candidateName || s.name || '').trim().toLowerCase() === (candidate.name || '').trim().toLowerCase(),
+                );
+                setSelectedViewCandidate({
+                  name: candidate.name,
+                  candidate,
+                  slots: candidateSlots,
+                });
+                setActiveTab('candidates');
+              }
+            }}
             onAddHR={async (data) => {
               const nextId = hrs.length
                 ? Math.max(...hrs.map((h) => (typeof h.id === 'number' ? h.id : 0))) + 1
@@ -3269,62 +4152,141 @@ export default function AdminDashboard() {
             }}
           />
         ) : activeTab === 'stats' ? (
-          <AdminStatisticsChart />
+          <AdminStatisticsChart slots={slots} onReload={() => setStatsRefreshKey((k) => k + 1)} />
         ) : activeTab === 'leaves' ? (
           <AdminLeavesTable onBackToHome={() => setActiveTab('home')} />
         ) : (
           <>
-            {latestPendingRequest && (
-              <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 flex items-center justify-between text-xs sm:text-sm">
-                <div className="flex flex-wrap items-center gap-2 text-slate-800">
-                  <span className="font-semibold">
-                    {latestPendingRequest.name}
+            {pendingSlots.length > 0 && (
+              <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-3">
+                {pendingSlots.map((slot) => {
+                  const slotId = slot.firestoreId || slot.id;
+                  const slotDateStr = slot.date instanceof Date
+                    ? slot.date.toISOString().slice(0, 10)
+                    : slot.date;
+                  const isToday = slotDateStr === new Date().toISOString().slice(0, 10);
+                  return (
+                    <div
+                      key={slotId}
+                      className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 flex flex-col gap-2 text-xs sm:text-sm"
+                    >
+                      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-slate-800">
+                        <span className="font-semibold truncate" title={slot.candidateName || slot.name}>
+                          {slot.candidateName || slot.name}
                   </span>
-                  <span className="text-slate-400">|</span>
-                  {latestPendingRequest.date === new Date().toISOString().slice(0, 10) ? (
-                    <span className="text-emerald-700 font-semibold">
-                      Today
-                    </span>
-                  ) : (
-                    <span>{latestPendingRequest.dateLabel}</span>
-                  )}
-                  <span className="text-slate-400">|</span>
-                  <span>{latestPendingRequest.timeLabel}</span>
+                        <span className="text-slate-500">•</span>
+                        <span className="text-slate-600">
+                          {isToday ? (
+                            <span className="text-emerald-700 font-medium">Today</span>
+                          ) : (
+                            slot.dateExactLabel || slot.dateLabel
+                          )}
+                        </span>
+                        {slot.timeLabel && (
+                          <>
+                            <span className="text-slate-500">•</span>
+                            <span className="text-slate-600">{slot.timeLabel}</span>
+                          </>
+                        )}
                 </div>
-                <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 mt-auto">
                   <button
                     type="button"
-                    onClick={() => handleApproveSlot(latestPendingRequest.id)}
-                    className="inline-flex items-center gap-1 rounded bg-emerald-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-emerald-600"
+                          onClick={() => handleApproveSlot(slotId)}
+                          className="inline-flex items-center gap-1 rounded bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-600 flex-1 justify-center"
                   >
                     <i className="fa-solid fa-check" aria-hidden="true" />
                     Approve
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleRejectSlot(latestPendingRequest.id)}
-                    className="inline-flex items-center gap-1 rounded bg-red-500 px-3 py-1 text-[11px] font-semibold text-white hover:bg-red-600"
+                          onClick={() => handleRejectSlot(slotId)}
+                          className="inline-flex items-center gap-1 rounded bg-red-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-600 flex-1 justify-center"
                   >
                     <i className="fa-solid fa-xmark" aria-hidden="true" />
                     Reject
                   </button>
                 </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
             <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
-              {/* Admin calendar header - match screenshot */}
+              {/* Admin calendar header */}
               <div className="border-b border-slate-200 pb-3 sm:pb-4">
+                {/* Mobile: match screenshot layout (all centered, stacked) */}
+                <div className="flex flex-col items-center gap-2 sm:hidden">
+                  {/* Today's date with calendar icon */}
+                  <div className="flex items-center gap-2 text-xs text-purple-600">
+                    <i className="fa-regular fa-calendar-days" aria-hidden="true" />
+                    <span className="font-semibold">
+                      Today: {adminTodayLabel}
+                    </span>
+                  </div>
+                  {/* Slot Booking / Slot Booking Calendar + reload */}
+                  <div className="flex items-center justify-center gap-2">
+                    {/* Mobile text without 'Calendar' */}
+                    <span className="text-xs font-semibold text-purple-600">
+                      Slot Booking
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCalendarRefreshKey((k) => k + 1)}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 flex-shrink-0"
+                      aria-label="Reload calendar"
+                    >
+                      <i className="fa-solid fa-rotate-right text-xs" aria-hidden="true" />
+                    </button>
+                  </div>
+                  {/* Download button full-width-ish */}
+                  <div className="w-full flex justify-center">
+                    <a
+                      href="/interview_process_candidate_details.pdf"
+                      download="Personal_Detail_Form.pdf"
+                      className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-md bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white shadow hover:bg-sky-600"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M12 3v12" />
+                        <path d="M8 11l4 4 4-4" />
+                        <rect x="4" y="17" width="16" height="3" rx="1" />
+                      </svg>
+                      <span>Download Personal Detail Form</span>
+                    </a>
+                  </div>
+                </div>
+
+                {/* Desktop / tablet: keep existing centered header layout */}
+                <div className="hidden sm:block">
                 <div className="relative flex items-center justify-between gap-3">
-                  {/* Left: Today (no date text) */}
-                  <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700 w-32 min-w-0">
-                    <CalendarIcon className="w-4 h-4 text-purple-500 flex-shrink-0" />
-                    <span className="font-medium truncate">Today</span>
+                    {/* Left: Today's date */}
+                    <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-700 w-40 min-w-0">
+                      <span className="font-medium truncate">
+                        Today {adminTodayLabel}
+                      </span>
                   </div>
 
-                  {/* Center: Slot Booking Calendar */}
-                  <span className="absolute left-1/2 -translate-x-1/2 text-xs sm:text-sm font-semibold text-purple-600">
-                    Slot Booking Calendar
+                    {/* Center: Slot Booking + reload */}
+                    <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-semibold text-purple-600">
+                        Slot Booking
                   </span>
+                      <button
+                        type="button"
+                        onClick={() => setCalendarRefreshKey((k) => k + 1)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50 flex-shrink-0"
+                        aria-label="Reload calendar"
+                      >
+                        <i className="fa-solid fa-rotate-right text-sm" aria-hidden="true" />
+                      </button>
+                    </div>
 
                   {/* Right: Download button only (stats are in CalendarToolbar below) */}
                   <div className="flex items-center justify-end">
@@ -3347,10 +4309,11 @@ export default function AdminDashboard() {
                       </svg>
                       <span>Download Personal Detail Form</span>
                     </a>
+                    </div>
                   </div>
                 </div>
 
-                <WeekCalendar />
+                <WeekCalendar key={calendarRefreshKey} />
               </div>
             </div>
           </>

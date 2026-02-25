@@ -1,163 +1,56 @@
-import React, { useMemo, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { Suspense, useRef, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import './index.css';
-import Header from './Components/Header';
-import CalendarToolbar from './Components/CalendarToolbar';
-import SlotCalendar from './Components/SlotCalendar';
-import Login from './pages/Login';
-import Register from './pages/Register';
 import { AuthProvider } from './context/AuthContext';
-import CandidateDashboard from './view/CandidateDashboard';
-import AdminDashboard from './view/AdminDashboard';
-import {
-  getWeekStart,
-  formatWeekRangeLabel,
-  getWeekDays,
-  parseISOToDate,
-  isSameDay,
-} from './calendar';
 
-// Placeholder events (no fixed dates; real data should come from backend)
-const MOCK_EVENTS = [];
+const Login = React.lazy(() => import(/* webpackChunkName: "auth" */ './pages/Login'));
+const Register = React.lazy(() => import(/* webpackChunkName: "auth" */ './pages/Register'));
+const AdminRouteGuard = React.lazy(() => import(/* webpackChunkName: "dashboards" */ './Components/AdminRouteGuard'));
+const CandidateRouteGuard = React.lazy(() => import(/* webpackChunkName: "dashboards" */ './Components/CandidateRouteGuard'));
+const CalendarPage = React.lazy(() => import(/* webpackChunkName: "calendar" */ './pages/CalendarPage'));
 
-function App() {
-  const [today, setToday] = useState(() => new Date());
-  const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
-  const [showMobileCalendar, setShowMobileCalendar] = useState(false);
+function NoDashboardViaBackForward({ children }) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const arrivedViaPopstate = useRef(false);
 
-  // On mount and when tab is visible: show current today's date immediately
-  React.useEffect(() => {
-    const syncToToday = () => {
-      const now = new Date();
-      setToday(now);
-      setWeekStart(getWeekStart(now));
+  useEffect(() => {
+    const onPopstate = () => {
+      arrivedViaPopstate.current = true;
     };
-    syncToToday(); // run immediately on mount
-    const interval = setInterval(syncToToday, 5000);
-    const onVisibility = () => {
-      if (document.visibilityState === 'visible') syncToToday();
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
+    window.addEventListener('popstate', onPopstate);
+    return () => window.removeEventListener('popstate', onPopstate);
   }, []);
 
-  const weekEnd = useMemo(() => {
-    const days = getWeekDays(weekStart, 6);
-    return days[days.length - 1];
-  }, [weekStart]);
+  useEffect(() => {
+    const isDashboard =
+      location.pathname === '/admin-dashboard' || location.pathname === '/candidate-dashboard';
+    if (isDashboard && arrivedViaPopstate.current) {
+      arrivedViaPopstate.current = false;
+      navigate('/login', { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
-  const rangeLabel = useMemo(
-    () => formatWeekRangeLabel(weekStart, weekEnd),
-    [weekStart, weekEnd],
-  );
+  return children;
+}
 
-  const todaysSlotsCount = useMemo(
-    () =>
-      MOCK_EVENTS.filter((event) => {
-        const eventDate = parseISOToDate(event.start);
-        return isSameDay(eventDate, today);
-      }).length,
-    [today],
-  );
-
-  const weeklySlotsCount = useMemo(
-    () =>
-      MOCK_EVENTS.filter((event) => {
-        const eventDate = parseISOToDate(event.start);
-        return eventDate >= weekStart && eventDate <= weekEnd;
-      }).length,
-    [weekStart, weekEnd],
-  );
-
-  const weekEvents = useMemo(
-    () =>
-      MOCK_EVENTS.filter((event) => {
-        const eventDate = parseISOToDate(event.start);
-        return eventDate >= weekStart && eventDate <= weekEnd;
-      }),
-    [weekStart, weekEnd],
-  );
-
-  const handleToday = () => {
-    setWeekStart(getWeekStart(new Date()));
-  };
-
-  const handleNextWeek = () => {
-    setWeekStart((prev) => {
-      const next = new Date(prev);
-      next.setDate(next.getDate() + 7);
-      return next;
-    });
-  };
-
-  const CalendarPage = () => (
-    <div className="min-h-screen bg-slate-100 text-slate-900 antialiased">
-      <Header fullWidth />
-
-      <main className="w-full mt-2 px-4 pb-6 sm:pb-10">
-        <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
-          <CalendarToolbar
-            today={today}
-            rangeLabel={rangeLabel}
-            onNextWeek={handleNextWeek}
-            onToday={handleToday}
-            todaysSlotsCount={todaysSlotsCount}
-            weeklySlotsCount={weeklySlotsCount}
-          />
-          <div className="mt-4">
-            <SlotCalendar today={today} weekStart={weekStart} events={weekEvents} />
-          </div>
-        </div>
-      </main>
-      {showMobileCalendar && (
-        <div className="fixed inset-0 z-50 bg-white">
-          <div className="h-full flex flex-col">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Select date</h3>
-              <button
-                onClick={() => setShowMobileCalendar(false)}
-                className="px-3 py-1 rounded bg-gray-100"
-              >
-                Close
-              </button>
-            </div>
-            <div className="flex-1 p-6 flex items-center justify-center">
-              <input
-                type="date"
-                className="w-full max-w-md border border-gray-200 rounded-md p-3 text-lg"
-              />
-            </div>
-            <div className="p-4 border-t">
-              <button
-                onClick={() => setShowMobileCalendar(false)}
-                className="w-full inline-flex items-center justify-center px-4 py-2 rounded bg-purple-600 text-white"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
+function App() {
   return (
     <Router>
       <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-
-          <Route path="/admin-dashboard" element={<AdminDashboard />} />
-          <Route path="/candidate-dashboard" element={<CandidateDashboard />} />
-          <Route path="/candidate-event-list" element={<CandidateDashboard />} />
-
-          <Route path="/" element={<CalendarPage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <NoDashboardViaBackForward>
+          <Suspense fallback={<div className="min-h-screen bg-slate-100 flex items-center justify-center"><span className="text-purple-600 font-medium">Loading…</span></div>}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/admin-dashboard" element={<AdminRouteGuard />} />
+            <Route path="/candidate-dashboard" element={<CandidateRouteGuard />} />
+            <Route path="/candidate-event-list" element={<CandidateRouteGuard />} />
+            <Route path="/" element={<CalendarPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+          </Suspense>
+        </NoDashboardViaBackForward>
       </AuthProvider>
     </Router>
   );

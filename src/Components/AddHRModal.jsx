@@ -91,17 +91,16 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
 
       {/* modal */}
       <div className="relative bg-white rounded-lg shadow-xl w-full max-w-xl mx-4 z-10">
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-3 right-3 text-gray-500 hover:text-gray-700"
-          aria-label="Close"
-        >
-          ✕
-        </button>
-
-        <div className="px-6 py-4 border-b relative">
+        <div className="px-6 py-4 border-b flex items-center justify-between relative">
           <h3 className="text-base font-semibold text-gray-800">Add New HR</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"
+            aria-label="Close"
+          >
+            <i className="fa-solid fa-xmark text-sm" aria-hidden="true" />
+          </button>
           
           {/* Success Toast in Form Header */}
           {showSuccessToast && (
@@ -131,7 +130,9 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
             {/* Left column */}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700">* HR Name</label>
+                <label className="block text-xs font-semibold text-gray-700">
+                  <span className="text-red-500">*</span> HR Name
+                </label>
                 <input
                   name="name"
                   value={form.name}
@@ -142,7 +143,9 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700">* Email</label>
+                <label className="block text-xs font-semibold text-gray-700">
+                  <span className="text-red-500">*</span> Email
+                </label>
                 <input
                   name="email"
                   value={form.email}
@@ -153,7 +156,9 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700">* Job Type</label>
+                <label className="block text-xs font-semibold text-gray-700">
+                  <span className="text-red-500">*</span> Job Type
+                </label>
                 <select
                   name="jobType"
                   value={form.jobType}
@@ -163,11 +168,14 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
                   <option value="">Select Job Type</option>
                   <option value="onsite">Onsite</option>
                   <option value="remote">Remote</option>
+                  <option value="hybrid">Hybrid</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-gray-700">* Company Name</label>
+                <label className="block text-xs font-semibold text-gray-700">
+                  <span className="text-red-500">*</span> Company Name
+                </label>
                 <input
                   name="company"
                   value={form.company}
@@ -181,7 +189,9 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
             {/* Right column */}
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-700">* Technology</label>
+                <label className="block text-xs font-semibold text-gray-700">
+                  <span className="text-red-500">*</span> Technology
+                </label>
                 <select
                   name="technology"
                   value={form.technology}
