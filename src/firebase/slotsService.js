@@ -15,7 +15,9 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 
-const SLOTS_COLLECTION = 'slots';
+// Use the same collection as the existing app so both UIs
+// operate on the shared events data.
+const SLOTS_COLLECTION = 'events';
 
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -37,6 +39,20 @@ export function formatDateDDMMYYYY(dateVal) {
  * Expects slot with: date (Date), startHour, startMinute, duration, candidateName, company.
  */
 export function slotToCalendarEvent(slot) {
+  // Prefer explicit start/end ISO timestamps when present (events schema).
+  if (slot.startISO && slot.endISO) {
+    const title = [slot.candidateName || slot.name || 'Slot', slot.company]
+      .filter(Boolean)
+      .join(' - ');
+    return {
+      id: slot.id || slot.firestoreId,
+      start: slot.startISO,
+      end: slot.endISO,
+      title: title || 'Interview',
+    };
+  }
+
+  // Fallback to date + startHour/startMinute + duration (slots schema).
   const d = slot.date?.toDate ? slot.date.toDate() : new Date(slot.date);
   const start = new Date(d);
   start.setHours(slot.startHour ?? 0, slot.startMinute ?? 0, 0, 0);
@@ -213,29 +229,58 @@ function slotDocToUI(docSnapshot) {
   const data = docSnapshot.data();
   const id = docSnapshot.id;
 
-  // Parse date: Timestamp, Date, or ISO/date string
+  // Parse date: Timestamp, Date, or ISO/date string (events store YYYY-MM-DD).
   let slotDate;
   if (data.date?.toDate) {
     slotDate = data.date.toDate();
   } else if (data.date instanceof Date) {
     slotDate = data.date;
+  } else if (typeof data.date === 'string' && data.date) {
+    slotDate = new Date(data.date + 'T00:00:00');
+  } else if (data.start) {
+    // Fallback: infer from start timestamp/ISO string
+    const startVal = data.start?.toDate ? data.start.toDate() : new Date(data.start);
+    slotDate = Number.isNaN(startVal.getTime()) ? new Date() : startVal;
   } else {
-    slotDate = new Date(data.date && typeof data.date === 'string' ? data.date + 'T00:00:00' : data.date);
+    slotDate = new Date();
   }
 
-  // startHour/startMinute: use if present, else parse from time string (e.g. "14:30")
+  // Derive start/end and duration:
+  // 1) Prefer explicit startHour/startMinute/duration (slots schema)
+  // 2) Otherwise, compute from start/end (events schema)
   let startHour = data.startHour;
   let startMinute = data.startMinute;
+  let duration = data.duration != null ? Number(data.duration) : undefined;
+  let startISO;
+  let endISO;
+
+  // Events schema: start/end stored as ISO strings or Timestamps
+  if (!data.startHour && data.start) {
+    const startVal = data.start?.toDate ? data.start.toDate() : new Date(data.start);
+    const endVal = data.end?.toDate ? data.end.toDate() : new Date(data.end);
+    if (!Number.isNaN(startVal.getTime()) && !Number.isNaN(endVal.getTime())) {
+      startHour = startVal.getHours();
+      startMinute = startVal.getMinutes();
+      const diffMs = endVal.getTime() - startVal.getTime();
+      const diffMins = Math.max(0, Math.round(diffMs / (1000 * 60)));
+      duration = Number.isFinite(diffMins) && diffMins > 0 ? diffMins : 30;
+      startISO = startVal.toISOString();
+      endISO = endVal.toISOString();
+    }
+  }
+
+  // Legacy time string support (e.g. "14:30")
   if (startHour == null && data.time) {
     const parts = String(data.time).trim().split(':');
     startHour = parseInt(parts[0], 10) || 0;
     startMinute = parseInt(parts[1], 10) || 0;
   }
+
   startHour = startHour != null ? startHour : 0;
   startMinute = startMinute != null ? startMinute : 0;
+  const finalDuration = duration != null ? duration : 30;
 
   const company = data.company || data.companyName || '';
-  const duration = data.duration != null ? Number(data.duration) : 30;
 
   return {
     id,
@@ -248,18 +293,21 @@ function slotDocToUI(docSnapshot) {
     hrMobile: data.hrMobile || '',
     company,
     technology: data.technology || '',
-    round: data.round || '',
+    round: data.round || data.interviewRound || '',
     date: slotDate,
     startHour,
     startMinute,
-    duration,
+    duration: finalDuration,
     status: data.status || 'Pending',
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
+    // Preserve original start/end when present so calendar can use them directly
+    startISO,
+    endISO,
     // Formatted labels for UI
     dateLabel: formatDateLabel(slotDate),
     dateExactLabel: formatDateExact(slotDate),
-    timeLabel: formatTimeLabel(startHour, startMinute, duration),
+    timeLabel: formatTimeLabel(startHour, startMinute, finalDuration),
     createdAtLabel: formatCreatedAt(data.createdAt),
     createdAtExactLabel: formatCreatedAtExact(data.createdAt),
   };
@@ -277,33 +325,46 @@ export function slotsSnapshotToUI(snapshot) {
 export async function getSlotsForDate(dateStr) {
   if (!dateStr || typeof dateStr !== 'string') return [];
   try {
-    const startOfDay = new Date(dateStr + 'T00:00:00');
-    const endOfDay = new Date(dateStr + 'T23:59:59.999');
-    const startTimestamp = Timestamp.fromDate(startOfDay);
-    const endTimestamp = Timestamp.fromDate(endOfDay);
-
     const slotsRef = collection(db, SLOTS_COLLECTION);
-    const q = query(
-      slotsRef,
-      where('date', '>=', startTimestamp),
-      where('date', '<=', endTimestamp),
-    );
-    const snapshot = await getDocs(q);
+
+    // Events schema stores date as a YYYY-MM-DD string. Prefer that path.
+    let qRef;
+    qRef = query(slotsRef, where('date', '==', dateStr));
+
+    const snapshot = await getDocs(qRef);
 
     const result = [];
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
+
+      // Derive startHour/startMinute/duration similarly to slotDocToUI
       let startHour = data.startHour;
       let startMinute = data.startMinute;
+      let duration = data.duration != null ? Number(data.duration) : undefined;
+
+      if (!data.startHour && data.start) {
+        const startVal = data.start?.toDate ? data.start.toDate() : new Date(data.start);
+        const endVal = data.end?.toDate ? data.end.toDate() : new Date(data.end);
+        if (!Number.isNaN(startVal.getTime()) && !Number.isNaN(endVal.getTime())) {
+          startHour = startVal.getHours();
+          startMinute = startVal.getMinutes();
+          const diffMs = endVal.getTime() - startVal.getTime();
+          const diffMins = Math.max(0, Math.round(diffMs / (1000 * 60)));
+          duration = Number.isFinite(diffMins) && diffMins > 0 ? diffMins : 30;
+        }
+      }
+
       if (startHour == null && data.time) {
         const parts = String(data.time).trim().split(':');
         startHour = parseInt(parts[0], 10) || 0;
         startMinute = parseInt(parts[1], 10) || 0;
       }
+
       startHour = startHour != null ? startHour : 0;
       startMinute = startMinute != null ? startMinute : 0;
-      const duration = data.duration != null ? Number(data.duration) : 30;
-      result.push({ startHour, startMinute, duration });
+      const finalDuration = duration != null ? duration : 30;
+
+      result.push({ startHour, startMinute, duration: finalDuration });
     });
     return result;
   } catch (error) {
@@ -619,7 +680,8 @@ export async function getSlotStatistics() {
 }
 
 // --- Admin Leaves (block slot booking on these dates) ---
-const LEAVES_COLLECTION = 'leaves';
+// Reuse the existing adminLeaves collection so leave days are shared.
+const LEAVES_COLLECTION = 'adminLeaves';
 
 /**
  * Get all leave dates from Firestore. Returns array of { id, date } where date is YYYY-MM-DD.
@@ -630,8 +692,20 @@ export async function getLeaves() {
     const snapshot = await getDocs(ref);
     return snapshot.docs.map((d) => ({
       id: d.id,
-      date: d.data().date || '',
-      dateLabel: d.data().dateLabel || '',
+      // Normalise to YYYY-MM-DD string for consumers like BookSlot/WeekCalendar.
+      date: (() => {
+        const raw = d.data().date;
+        if (raw?.toDate) {
+          const dt = raw.toDate();
+          const y = dt.getFullYear();
+          const m = String(dt.getMonth() + 1).padStart(2, '0');
+          const day = String(dt.getDate()).padStart(2, '0');
+          return `${y}-${m}-${day}`;
+        }
+        if (typeof raw === 'string') return raw;
+        return '';
+      })(),
+      dateLabel: d.data().dateLabel || (d.data().date?.toDate ? formatDateDDMMYYYY(d.data().date.toDate()) : ''),
     }));
   } catch (err) {
     console.error('Error loading leaves:', err);

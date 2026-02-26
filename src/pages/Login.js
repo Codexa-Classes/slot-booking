@@ -36,45 +36,108 @@ export default function Login() {
     }
 
     try {
-      // Query Firestore "users" collection where mobile == entered mobile
-      const q = query(collection(db, 'users'), where('mobile', '==', trimmedMobile));
-      const querySnapshot = await getDocs(q);
+      const normalizedMobile = trimmedMobile;
 
-      if (querySnapshot.empty) {
-        setLocalError('User not found');
-        return;
-      }
+      // --- Admin login (admin collection) ---
+      const adminsRef = collection(db, 'admin');
+      const adminQuery = query(adminsRef, where('phone', '==', normalizedMobile));
+      const adminSnapshot = await getDocs(adminQuery);
 
-      const userData = querySnapshot.docs[0].data();
-      console.log('User Data:', userData);
+      if (!adminSnapshot.empty) {
+        const adminDoc = adminSnapshot.docs[0];
+        const adminData = adminDoc.data();
 
-      // Compare password as strings (trimmed)
-      const storedPassword = String(userData?.password ?? '').trim();
-      const enteredPassword = String(trimmedPassword);
+        if (trimmedPassword === String(adminData.password || '').trim()) {
+          const adminSession = {
+            id: adminDoc.id,
+            name: adminData.name || 'Admin',
+            role: 'admin',
+            phone: adminData.phone,
+            loginTime: Date.now(),
+            isAdmin: true,
+          };
 
-      if (storedPassword !== enteredPassword) {
+          // Preserve original app’s admin session keys for compatibility
+          localStorage.setItem('user', JSON.stringify(adminSession));
+          localStorage.setItem('adminToken', Date.now().toString());
+          localStorage.setItem('adminAuth', 'true');
+
+          // Also set sb_user so route guards in this app keep working
+          localStorage.setItem(
+            'sb_user',
+            JSON.stringify({
+              mobile: normalizedMobile,
+              role: 'admin',
+              name: (adminData.name || '').trim(),
+            }),
+          );
+
+          navigate('/admin-dashboard', { replace: true });
+          return;
+        }
+
         setLocalError('Invalid password');
         return;
       }
 
-      const role = userData?.role?.trim().toLowerCase();
-      console.log('Role:', role);
+      // --- Candidate login (candidates collection) ---
+      const candidatesRef = collection(db, 'candidates');
+      const candidateQuery = query(candidatesRef, where('mobile', '==', normalizedMobile));
+      const candidateSnapshot = await getDocs(candidateQuery);
 
-      // Store session for logout / future use
+      if (candidateSnapshot.empty) {
+        setLocalError('No account found with this mobile number.');
+        return;
+      }
+
+      const candidateDoc = candidateSnapshot.docs[0];
+      const candidateData = candidateDoc.data();
+
+      if (!candidateData.approvedByAdmin) {
+        setLocalError('Your account has not been approved by the admin.');
+        return;
+      }
+
+      if (!candidateData.isActive) {
+        setLocalError(
+          'Your account is currently inactive. Please contact the administrator.',
+        );
+        return;
+      }
+
+      if (candidateData.isSelected) {
+        setLocalError('Selected candidates cannot login to the system.');
+        return;
+      }
+
+      if (trimmedPassword !== String(candidateData.password || '').trim()) {
+        setLocalError('Invalid password');
+        return;
+      }
+
+      const candidateSession = {
+        ...candidateData,
+        id: candidateDoc.id,
+        role: 'candidate',
+      };
+
+      // Original app’s candidate session keys
+      localStorage.setItem('candidates', JSON.stringify(candidateSession));
+      localStorage.setItem('name', candidateSession.name);
+      localStorage.setItem('email', candidateSession.email);
+      localStorage.setItem('uid', candidateSession.id);
+
+      // Also set sb_user for this app’s guards and dashboards
       localStorage.setItem(
         'sb_user',
         JSON.stringify({
-          mobile: trimmedMobile,
-          role,
-          name: (userData?.name || '').trim(),
+          mobile: normalizedMobile,
+          role: 'candidate',
+          name: (candidateSession.name || '').trim(),
         }),
       );
 
-      if (role === 'admin') {
-        navigate('/admin-dashboard', { replace: true });
-      } else {
-        navigate('/candidate-dashboard', { replace: true });
-      }
+      navigate('/candidate-dashboard', { replace: true });
     } catch (err) {
       console.error(err);
       setLocalError('Failed to login. Please try again.');

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { useAuth } from '../context/AuthContext';
 import { getSlotsForDate, isSlotAvailable, getLeaves, formatDateDDMMYYYY } from '../firebase/slotsService';
@@ -345,32 +345,39 @@ export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList =
     const hrName = hr.name || '';
     const hrEmail = hr.email || '';
     const hrMobile = hr.mobile || '';
-    const startHour = parseInt(form.hour, 10) || 0;
+    const startHour24 = parseInt(form.hour, 10) || 0;
     const startMinute = parseInt(form.minute, 10) || 0;
     const duration = parseInt(form.duration, 10) || 30;
-    // Store date as Firestore Timestamp so admin dashboard and slotsService display it correctly
-    const slotDate = form.date ? new Date(form.date + 'T00:00:00') : new Date();
-    const dateTimestamp = Timestamp.fromDate(slotDate);
+
+    // Construct start/end Date objects in local time, then store as ISO strings
+    const dateStr = form.date || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    const startDateTime = new Date(`${dateStr}T${String(startHour24).padStart(2, '0')}:${String(
+      startMinute,
+    ).padStart(2, '0')}:00`);
+    const endDateTime = new Date(startDateTime.getTime() + duration * 60000);
 
     const payload = {
-      candidateId,
-      candidateName,
       company,
       technology,
-      round: form.round,
-      date: dateTimestamp,
-      startHour,
-      startMinute,
-      duration,
+      interviewRound: form.round,
+      start: startDateTime.toISOString(),
+      end: endDateTime.toISOString(),
+      date: dateStr,
+      status: 'Pending Approval',
+      feedback: '',
+      createdAt: new Date().toISOString(),
+      candidateId,
+      isApproved: false,
+      hrId: hr.id || '',
+      // Extra fields are safe for the existing app to ignore
       hrName,
       hrEmail,
       hrMobile,
-      status: 'pending',
-      createdAt: serverTimestamp(),
+      candidateName,
     };
 
     try {
-      await addDoc(collection(db, 'slots'), payload);
+      await addDoc(collection(db, 'events'), payload);
       onBookSuccess?.();
       navigate('/candidate-dashboard?view=slots', { replace: true });
     } catch (err) {

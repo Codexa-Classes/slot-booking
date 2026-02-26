@@ -3685,7 +3685,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     setSlotsLoading(true);
     setSlotsError(null);
-    const slotsRef = collection(db, 'slots');
+    const slotsRef = collection(db, 'events');
     const q = query(slotsRef, orderBy('createdAt', 'desc'));
     const unsubscribe = onSnapshot(
       q,

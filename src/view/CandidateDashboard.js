@@ -405,7 +405,7 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
     if (!candidateId) return;
 
     const q = query(
-      collection(db, 'slots'),
+      collection(db, 'events'),
       where('candidateId', '==', candidateId),
     );
     const unsub = onSnapshot(q, (snap) => {
@@ -492,7 +492,7 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
 
   const handleDeleteSlot = async (id) => {
     try {
-      await deleteDoc(doc(db, 'slots', id));
+      await deleteDoc(doc(db, 'events', id));
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to delete slot:', err);
