@@ -8,6 +8,7 @@ const Register = React.lazy(() => import(/* webpackChunkName: "auth" */ './pages
 const AdminRouteGuard = React.lazy(() => import(/* webpackChunkName: "dashboards" */ './Components/AdminRouteGuard'));
 const CandidateRouteGuard = React.lazy(() => import(/* webpackChunkName: "dashboards" */ './Components/CandidateRouteGuard'));
 const CalendarPage = React.lazy(() => import(/* webpackChunkName: "calendar" */ './pages/CalendarPage'));
+const Calender = React.lazy(() => import(/* webpackChunkName: "calendar" */ './pages/Calender'));
 
 function NoDashboardViaBackForward({ children }) {
   const location = useLocation();
@@ -47,6 +48,7 @@ function App() {
             <Route path="/candidate-dashboard" element={<CandidateRouteGuard />} />
             <Route path="/candidate-event-list" element={<CandidateRouteGuard />} />
             <Route path="/" element={<CalendarPage />} />
+            <Route path="/calender" element={<Calender />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           </Suspense>

@@ -316,21 +316,20 @@ export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList =
       return;
     }
 
-    // Determine candidate identity from auth or local session
-    let candidateId = currentUser?.uid || '';
+    // Determine candidate identity from current sb_user session only
+    // Events will store candidateId as either Firestore doc id or mobile
+    let candidateId = '';
     let candidateName = 'Candidate';
     try {
-      const raw = localStorage.getItem('sb_user');
+      const raw = sessionStorage.getItem('sb_user');
       const parsed = raw ? JSON.parse(raw) : null;
+      const firestoreId = String(parsed?.id || '').trim();
       const mobile = String(parsed?.mobile || '').trim();
       const name = (parsed?.name || '').trim();
-      if (!candidateId && mobile) {
-        // Use mobile as stable id when Firebase auth user is not present
-        candidateId = mobile;
-      }
+      candidateId = firestoreId || mobile;
       if (name) candidateName = name;
     } catch {
-      // ignore localStorage errors
+      // ignore sessionStorage errors
     }
 
     if (!candidateId) {
@@ -379,7 +378,7 @@ export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList =
     try {
       await addDoc(collection(db, 'events'), payload);
       onBookSuccess?.();
-      navigate('/candidate-dashboard?view=slots', { replace: true });
+      navigate('/candidate-dashboard', { state: { openSlots: true }, replace: true });
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to book slot:', err);

@@ -9,7 +9,7 @@ import AdminDashboard from '../view/AdminDashboard';
  */
 export default function AdminRouteGuard() {
   try {
-    const raw = localStorage.getItem('sb_user');
+    const raw = sessionStorage.getItem('sb_user');
     const parsed = raw ? JSON.parse(raw) : null;
     const role = (parsed?.role || '').trim().toLowerCase();
 

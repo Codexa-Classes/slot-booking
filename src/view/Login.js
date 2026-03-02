@@ -61,7 +61,7 @@ export default function Login() {
             placeholder="Enter mobile number"
             value={mobileNumber}
             onChange={(e) => setMobileNumber(e.target.value)}
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+            className="w-full px-5 py-4 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
           />
         </div>
 
@@ -76,7 +76,7 @@ export default function Login() {
               placeholder="Enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-12"
+              className="w-full px-5 py-4 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent pr-12"
             />
             <button
               type="button"
@@ -96,7 +96,7 @@ export default function Login() {
 
         <button
           onClick={handleLogin}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 rounded-lg transition duration-200 ease-in-out"
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white font-semibold text-sm py-5 rounded-lg transition duration-200 ease-in-out"
         >
           Login
         </button>

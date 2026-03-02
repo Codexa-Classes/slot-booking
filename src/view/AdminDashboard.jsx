@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   collection,
   addDoc,
+  getDoc,
   getDocs,
   query,
   where,
@@ -132,7 +133,7 @@ function AdminHeader({ activeTab, onChangeTab }) {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    localStorage.removeItem('sb_user');
+    sessionStorage.removeItem('sb_user');
     setMenuOpen(false);
     navigate('/login', { replace: true });
   };
@@ -459,7 +460,7 @@ function AdminCandidatesTable({
           <button
             type="button"
             onClick={() => {
-              onChangeFilter('all');
+              onChangeFilter('unselected');
               onChangeSearch('');
             }}
             className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm hover:bg-slate-50"
@@ -496,7 +497,7 @@ function AdminCandidatesTable({
           </span>
         </div>
 
-        {/* Right: all filters grouped and right-aligned */}
+        {/* Right: filters grouped and right-aligned */}
         <div className="flex items-center justify-end gap-3 w-full sm:w-auto">
           {/* Selected / Unselected pill */}
           <div className="flex rounded-full border border-purple-400 overflow-hidden text-[11px] sm:text-xs">
@@ -584,12 +585,48 @@ function AdminCandidatesTable({
             </tr>
           </thead>
           <tbody>
-            {paginatedCandidates.map((c) => (
-              <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">{c.id}</td>
-                <td className="px-3 py-2 text-slate-800 border-r border-slate-200">{c.name}</td>
+            {paginatedCandidates.map((c, idx) => (
+              <tr key={c.firestoreId || c.id} className="border-b border-slate-100 hover:bg-slate-50">
+                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
+                  {startIdx + idx + 1}
+                </td>
+                <td className="px-3 py-2 text-slate-800 border-r border-slate-200">
+                  <div className="flex items-center gap-1.5">
+                    {(() => {
+                      const ref = (c.referredBy || '').toLowerCase();
+                      let bg = 'bg-slate-100';
+                      let text = 'text-slate-600';
+                      if (ref.includes('anil')) {
+                        bg = 'bg-blue-100';
+                        text = 'text-blue-600';
+                      } else if (ref.includes('viraj')) {
+                        bg = 'bg-emerald-100';
+                        text = 'text-emerald-600';
+                      } else if (ref.includes('nilesh')) {
+                        bg = 'bg-red-100';
+                        text = 'text-red-600';
+                      } else if (ref.includes('vishal')) {
+                        bg = 'bg-orange-100';
+                        text = 'text-orange-600';
+                      }
+                      return (
+                        <span
+                          className={`inline-flex h-6 w-6 items-center justify-center rounded-full ${bg} ${text} text-[11px] flex-shrink-0`}
+                        >
+                          <i className="fa-solid fa-user text-xs" aria-hidden="true" />
+                        </span>
+                      );
+                    })()}
+                    <span className="truncate">{c.name}</span>
+                    {c.selected && (
+                      <span className="ml-1 text-xs font-bold text-blue-600 whitespace-nowrap">
+                        - Selected
+                      </span>
+                    )}
+                  </div>
+                </td>
                 <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">{c.mobile}</td>
-                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">{c.experience}</td>
+                <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">{c.experience || '0'}</td>
                 <td className="px-3 py-2 text-center border-r border-slate-200">
                   <div className="inline-flex flex-wrap gap-1 justify-center">
                     {c.technologies.map((t) => (
@@ -680,38 +717,57 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
     name: '',
     mobile: '',
     experience: '',
-    password: '9256',
+    password: '123456',
     technology: [],
-    payment: '',
     referredBy: '',
   });
   const [showPassword, setShowPassword] = useState(true);
   const [showTechDropdown, setShowTechDropdown] = useState(false);
+  const techDropdownRef = useRef(null);
+  const [techSearch, setTechSearch] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
   const techOptions = [
     'PHP',
-    '.net Developer',
+    '.net Devloper',
+    'Python',
     'Data Science',
     'MERN Stack',
     'MEAN Stack',
     'Java',
+    'React Devloper',
     'App Support',
-    'Business Analyst',
+    'Busness Analyst',
+    'Manual Testing',
     'Automation Testing',
-    'Dev Ops(Awg)',
-    'Dev Ops(Azure)',
+    'DevOps(AWG)',
+    'DevOps(Azure)',
     'Data Analysts',
     'AEM',
     'Power BI',
-    'Node.js Developer',
     'Other',
   ];
 
   const handleChange = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    let value = e.target.value;
+    if (field === 'mobile') {
+      value = value.replace(/\D/g, '');
+    } else if (field === 'password') {
+      value = value.replace(/\D/g, '').slice(0, 6);
+    } else if (field === 'experience') {
+      value = value.replace(/[^\d.]/g, '');
+      let parts = value.split('.');
+      if (parts.length > 2) {
+        parts = [parts[0], parts.slice(1).join('')];
+      }
+      if (parts.length === 2 && parts[1].length > 1) {
+        parts[1] = parts[1].slice(0, 1);
+      }
+      value = parts.join('.');
+    }
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const toggleTechOption = (value) => {
@@ -726,46 +782,148 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
     });
   };
 
+  const filteredTechOptions = useMemo(() => {
+    const q = techSearch.trim().toLowerCase();
+    if (!q) return techOptions;
+    return techOptions.filter((t) => String(t).toLowerCase().includes(q));
+  }, [techOptions, techSearch]);
+
+  useEffect(() => {
+    if (!showTechDropdown) return;
+
+    const onMouseDown = (event) => {
+      if (techDropdownRef.current && !techDropdownRef.current.contains(event.target)) {
+        setShowTechDropdown(false);
+      }
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setShowTechDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showTechDropdown]);
+
+  useEffect(() => {
+    if (!showTechDropdown) setTechSearch('');
+  }, [showTechDropdown]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
 
+    const trimmedName = form.name.trim();
     const trimmedMobile = form.mobile.trim();
     const trimmedPassword = form.password.trim();
 
-    if (!trimmedMobile || !trimmedPassword) {
-      setError('Please enter mobile and password.');
+    if (!trimmedName) {
+      setError('Candidate name is required.');
       return;
     }
-
+    if (!trimmedMobile) {
+      setError('Mobile number is required.');
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(trimmedMobile)) {
+      setError('Enter valid 10-digit mobile number starting with 6-9.');
+      return;
+    }
+    if (!trimmedPassword) {
+      setError('Password is required.');
+      return;
+    }
+    if (!/^\d{6}$/.test(trimmedPassword)) {
+      setError('Password must be exactly 6 digits.');
+      return;
+    }
+    if (!form.technology || form.technology.length === 0) {
+      setError('Please select at least one technology.');
+      return;
+    }
+    if (!form.referredBy?.trim()) {
+      setError('Referred By is required.');
+      return;
+    }
+    const trimmedExperience = form.experience?.trim();
+    if (!trimmedExperience) {
+      setError('Experience is required.');
+      return;
+    }
+    const validExpPattern = /^\d+(\.\d)?$/;
+    if (!validExpPattern.test(trimmedExperience)) {
+      setError('Experience must be a number between 0 and 20 with at most one decimal place.');
+      return;
+    }
+    const expNum = parseFloat(trimmedExperience);
+    if (Number.isNaN(expNum) || expNum < 0 || expNum > 20) {
+      setError('Experience must be a number between 0 and 20 with at most one decimal place.');
+      return;
+    }
     setLoading(true);
     try {
+      // Check if mobile already exists in candidates
+      const candidateQueryRef = query(
+        collection(db, 'candidates'),
+        where('mobile', '==', trimmedMobile),
+      );
+      const existingCandidateSnapshot = await getDocs(candidateQueryRef);
+
+      // Check if mobile already exists in admin collection (phone field)
+      const adminQueryRef = query(
+        collection(db, 'admin'),
+        where('phone', '==', trimmedMobile),
+      );
+      const existingAdminSnapshot = await getDocs(adminQueryRef);
+
+      if (!existingCandidateSnapshot.empty || !existingAdminSnapshot.empty) {
+        setError('This mobile number is already registered as Admin or Candidate.');
+        setLoading(false);
+        return;
+      }
+
+      const techString = form.technology.join(', ');
+
       const candidateData = {
+        name: trimmedName,
         mobile: trimmedMobile,
         password: trimmedPassword,
-        role: 'candidate',
+        approvedByAdmin: true,
+        technology: techString,
+        // store both spellings for compatibility with existing data
+        refereedBy: form.referredBy.trim(),
+        referredBy: form.referredBy.trim(),
+        experience: form.experience?.trim() || '',
+        isActive: true,
+        isSelected: false,
+        selectedDate: '',
+        selectedCompany: '',
+        selectedPackage: '',
+        joiningDate: '',
+        createdAt: serverTimestamp(),
+        regimeType: 'new-70',
       };
 
-      if (form.name?.trim()) candidateData.name = form.name.trim();
-      if (form.experience?.trim()) candidateData.experience = form.experience.trim();
-      if (form.technology?.length > 0) candidateData.technology = form.technology;
-      if (form.payment?.trim()) candidateData.payment = form.payment.trim();
-      if (form.referredBy?.trim()) candidateData.referredBy = form.referredBy.trim();
-
-      await addDoc(collection(db, 'users'), candidateData);
+      const docRef = await addDoc(collection(db, 'candidates'), candidateData);
 
       setSuccessMessage('Candidate added successfully.');
       
       // Pass full form data to parent for local state update
       if (typeof onSubmit === 'function') {
         onSubmit({
-          name: form.name?.trim() || '',
+          firestoreId: docRef.id,
+          name: trimmedName,
           mobile: trimmedMobile,
           experience: form.experience?.trim() || '',
           password: trimmedPassword,
           technology: form.technology || [],
-          payment: form.payment?.trim() || '',
           referredBy: form.referredBy?.trim() || '',
         });
       }
@@ -774,13 +932,13 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
         name: '',
         mobile: '',
         experience: '',
-        password: '9256',
+        password: '123456',
         technology: [],
-        payment: '',
         referredBy: '',
       });
       setShowPassword(true);
       setShowTechDropdown(false);
+      setTechSearch('');
     } catch (err) {
       console.error(err);
       setError(err?.message || 'Failed to add candidate.');
@@ -831,10 +989,10 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-        {/* Candidate Name */}
+        {/* Name of Candidate */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            <span className="text-red-500">*</span> Candidate Name
+            <span className="text-red-500">*</span> Name of Candidate
           </label>
           <input
             type="text"
@@ -859,21 +1017,22 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
           />
         </div>
 
-        {/* Experience */}
+        {/* Experience - required, 0–20, digits and decimal only */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            Experience
+            <span className="text-red-500">*</span> Experience
           </label>
           <input
             type="text"
+            inputMode="decimal"
             value={form.experience}
             onChange={handleChange('experience')}
-            placeholder="Enter experience (e.g., 2 yrs)"
+            placeholder="0–20 (e.g., 2 or 2.5)"
             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
           />
         </div>
 
-        {/* Password with Font Awesome show/hide icon */}
+        {/* Password with Font Awesome show/hide icon - 6 digits only */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
             <span className="text-red-500">*</span> Password
@@ -881,8 +1040,11 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
           <div className="flex items-stretch">
             <input
               type={showPassword ? 'text' : 'password'}
+              inputMode="numeric"
+              maxLength={6}
               value={form.password}
               onChange={handleChange('password')}
+              placeholder="6 digits"
               className="flex-1 rounded-l-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-200"
             />
             <button
@@ -901,11 +1063,14 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
           <label className="text-xs font-semibold text-slate-700">
             <span className="text-red-500">*</span> Technology
           </label>
-          <div className="relative">
+          <div ref={techDropdownRef} className="relative">
             {/* Visible input box with tags */}
             <div
               className="w-full flex items-center justify-between rounded-md border border-slate-200 bg-white px-2 py-1 text-xs sm:text-sm text-slate-800 cursor-pointer focus-within:ring-2 focus-within:ring-purple-200"
-              onClick={() => setShowTechDropdown((v) => !v)}
+              onClick={() => {
+                setShowTechDropdown((v) => !v);
+                setTechSearch('');
+              }}
             >
               <div className="flex flex-wrap gap-1 flex-1 min-h-[30px] items-center">
                 {form.technology.length ? (
@@ -948,43 +1113,45 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
             </div>
             {showTechDropdown && (
               <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
-                {techOptions.map((opt) => {
-                  const selected = form.technology.includes(opt);
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => {
-                        toggleTechOption(opt);
-                        setShowTechDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm border-b border-slate-100 ${
-                        selected
-                          ? 'bg-sky-100 text-slate-900'
-                          : 'bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  );
-                })}
+                <div className="sticky top-0 z-10 bg-white border-b border-slate-100 p-2">
+                  <input
+                    type="text"
+                    value={techSearch}
+                    onChange={(e) => setTechSearch(e.target.value)}
+                    placeholder="Search technology..."
+                    autoFocus
+                    className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  />
+                </div>
+                {filteredTechOptions.length ? (
+                  filteredTechOptions.map((opt) => {
+                    const selected = form.technology.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => {
+                          toggleTechOption(opt);
+                          setShowTechDropdown(false);
+                        }}
+                        className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm border-b border-slate-100 last:border-b-0 ${
+                          selected
+                            ? 'bg-sky-100 text-slate-900'
+                            : 'bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-2 text-xs text-slate-500">
+                    No matching technologies
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </div>
-
-        {/* Payment */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-700">
-            Payment
-          </label>
-          <input
-            type="text"
-            value={form.payment}
-            onChange={handleChange('payment')}
-            placeholder="Enter payment amount"
-            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
-          />
         </div>
 
         {/* Referred By (single-select) */}
@@ -1024,33 +1191,33 @@ function AdminAddCandidateForm({ onBack, onSubmit }) {
 
 const EDIT_TECH_OPTIONS = [
   'PHP',
+  '.net Devloper',
   'Python',
-  'Business Analyst',
-  '.net Developer',
   'Data Science',
   'MERN Stack',
   'MEAN Stack',
   'Java',
-  'React Developer',
+  'React Devloper',
   'App Support',
+  'Busness Analyst',
+  'Manual Testing',
   'Automation Testing',
-  'Dev Ops(Awg)',
-  'Dev Ops(Azure)',
+  'DevOps(AWG)',
+  'DevOps(Azure)',
   'Data Analysts',
   'AEM',
   'Power BI',
-  'Node.js Developer',
   'Other',
 ];
 
 function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
+  const [error, setError] = useState('');
   const [form, setForm] = useState({
     name: candidate?.name || '',
     mobile: candidate?.mobile || '',
     experience: candidate?.experience || '',
-    password: candidate?.password || candidate?.mobile?.slice(-4) || '',
+    password: String(candidate?.password ?? '').trim(),
     technology: Array.isArray(candidate?.technologies) ? [...candidate.technologies] : [],
-    payment: candidate?.payment?.replace(/[₹,]|\s/g, '') || '0',
     referredBy: candidate?.referredBy || 'Viraj Kadam Sir',
     selected: candidate?.selected ?? false,
     selectedDate: candidate?.selectedDate || '',
@@ -1060,9 +1227,45 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
   });
   const [showPassword, setShowPassword] = useState(true);
   const [showTechDropdown, setShowTechDropdown] = useState(false);
+  const techDropdownRef = useRef(null);
+  const [techSearch, setTechSearch] = useState('');
+
+  useEffect(() => {
+    if (candidate) {
+      setForm({
+        name: candidate.name || '',
+        mobile: candidate.mobile || '',
+        experience: candidate.experience || '',
+        password: String(candidate.password ?? '').trim(),
+        technology: Array.isArray(candidate.technologies) ? [...candidate.technologies] : [],
+        referredBy: candidate.referredBy || 'Viraj Kadam Sir',
+        selected: candidate.selected ?? false,
+        selectedDate: candidate.selectedDate || '',
+        joiningDate: candidate.joiningDate || '',
+        selectedCompany: candidate.selectedCompany || '',
+        package: candidate.package || '',
+      });
+    }
+  }, [candidate]);
 
   const handleChange = (field) => (e) => {
-    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+    let value = e.target.value;
+    if (field === 'mobile') {
+      value = value.replace(/\D/g, '');
+    } else if (field === 'password') {
+      value = value.replace(/\D/g, '').slice(0, 6);
+    } else if (field === 'experience') {
+      value = value.replace(/[^\d.]/g, '');
+      let parts = value.split('.');
+      if (parts.length > 2) {
+        parts = [parts[0], parts.slice(1).join('')];
+      }
+      if (parts.length === 2 && parts[1].length > 1) {
+        parts[1] = parts[1].slice(0, 1);
+      }
+      value = parts.join('.');
+    }
+    setForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const toggleTechOption = (value) => {
@@ -1077,12 +1280,109 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
+
+    const trimmedPassword = form.password?.trim();
+    if (trimmedPassword && !/^\d{6}$/.test(trimmedPassword)) {
+      setError('Password must be exactly 6 digits.');
+      return;
+    }
+
+    const trimmedExperience = form.experience?.trim();
+    if (!trimmedExperience) {
+      setError('Experience is required.');
+      return;
+    }
+    const validExpPattern = /^\d+(\.\d)?$/;
+    if (!validExpPattern.test(trimmedExperience)) {
+      setError('Experience must be a number between 0 and 20 with at most one decimal place.');
+      return;
+    }
+    const expNum = parseFloat(trimmedExperience);
+    if (Number.isNaN(expNum) || expNum < 0 || expNum > 20) {
+      setError('Experience must be a number between 0 and 20 with at most one decimal place.');
+      return;
+    }
+
+    // Basic validation for selected fields
+    if (form.selected) {
+      if (!form.selectedDate || !form.joiningDate || !form.selectedCompany || !form.package) {
+        // Rely on parent to show a generic error if needed; keep UI unchanged.
+        // eslint-disable-next-line no-console
+        console.warn('Selected candidate requires date, company, package, and joining date.');
+        onSubmit(form);
+        return;
+      }
+    }
+
+    try {
+      const techString = form.technology.join(', ');
+      const selectedPackage = form.package || '';
+
+      const candidateData = {
+        name: form.name.trim(),
+        mobile: form.mobile.trim(),
+        ...(trimmedPassword && { password: trimmedPassword }),
+        approvedByAdmin: true,
+        technology: techString,
+        refereedBy: form.referredBy,
+        referredBy: form.referredBy,
+        experience: form.experience?.trim() || '',
+        isActive: true,
+        isSelected: !!form.selected,
+        selectedDate: form.selected ? form.selectedDate : '',
+        selectedCompany: form.selected ? form.selectedCompany : '',
+        selectedPackage: form.selected ? (selectedPackage || '') : '',
+        joiningDate: form.selected ? form.joiningDate : '',
+      };
+
+      if (candidate?.firestoreId) {
+        await updateDoc(doc(db, 'candidates', candidate.firestoreId), candidateData);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to update candidate in Firestore:', err);
+    }
+
     onSubmit(form);
   };
 
   const techOptions = [...new Set([...form.technology, ...EDIT_TECH_OPTIONS])];
+
+  const filteredTechOptions = useMemo(() => {
+    const q = techSearch.trim().toLowerCase();
+    if (!q) return techOptions;
+    return techOptions.filter((t) => String(t).toLowerCase().includes(q));
+  }, [techOptions, techSearch]);
+
+  useEffect(() => {
+    if (!showTechDropdown) return;
+
+    const onMouseDown = (event) => {
+      if (techDropdownRef.current && !techDropdownRef.current.contains(event.target)) {
+        setShowTechDropdown(false);
+      }
+    };
+
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setShowTechDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [showTechDropdown]);
+
+  useEffect(() => {
+    if (!showTechDropdown) setTechSearch('');
+  }, [showTechDropdown]);
 
   return (
     <form
@@ -1103,18 +1403,24 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
 
         <div className="flex-1 text-center">
           <h2 className="text-sm sm:text-base font-semibold text-purple-600">
-            Edit Candidate
+            Edit {form.name ? form.name : 'Name of Candidate'}
           </h2>
         </div>
 
         <div className="w-10 sm:w-16" />
       </div>
 
+      {error && (
+        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-        {/* Candidate Name */}
+        {/* Name of Candidate */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            <span className="text-red-500">*</span> Candidate Name
+            <span className="text-red-500">*</span> Name of Candidate
           </label>
           <input
             type="text"
@@ -1139,30 +1445,34 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
           />
         </div>
 
-        {/* Experience */}
+        {/* Experience - required, 0–20, digits and decimal only */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            Experience
+            <span className="text-red-500">*</span> Experience
           </label>
           <input
             type="text"
+            inputMode="decimal"
             value={form.experience}
             onChange={handleChange('experience')}
-            placeholder="Enter experience (e.g., 2 yrs)"
+            placeholder="0–20 (e.g., 2 or 2.5)"
             className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
           />
         </div>
 
-        {/* Password with show/hide toggle */}
+        {/* Password with show/hide toggle - 6 digits only */}
         <div className="flex flex-col gap-1">
           <label className="text-xs font-semibold text-slate-700">
-            <span className="text-red-500">*</span> Password
+            Password
           </label>
           <div className="flex items-stretch">
             <input
               type={showPassword ? 'text' : 'password'}
+              inputMode="numeric"
+              maxLength={6}
               value={form.password}
               onChange={handleChange('password')}
+              placeholder="Leave blank to keep current"
               className="flex-1 rounded-l-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-200 rounded-r-none"
             />
             <button
@@ -1181,10 +1491,13 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
           <label className="text-xs font-semibold text-slate-700">
             <span className="text-red-500">*</span> Technology
           </label>
-          <div className="relative">
+          <div ref={techDropdownRef} className="relative">
             <div
               className="w-full flex items-center justify-between rounded-md border border-slate-200 bg-white px-2 py-1 text-xs sm:text-sm text-slate-800 cursor-pointer focus-within:ring-2 focus-within:ring-purple-200"
-              onClick={() => setShowTechDropdown((v) => !v)}
+              onClick={() => {
+                setShowTechDropdown((v) => !v);
+                setTechSearch('');
+              }}
             >
               <div className="flex flex-wrap gap-1 flex-1 min-h-[30px] items-center">
                 {form.technology.length ? (
@@ -1227,43 +1540,42 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
             </div>
             {showTechDropdown && (
               <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
-                {techOptions.map((opt) => {
-                  const selected = form.technology.includes(opt);
-                  return (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => {
-                        toggleTechOption(opt);
-                        setShowTechDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm border-b border-slate-100 last:border-b-0 ${
-                        selected
-                          ? 'bg-sky-100 text-slate-900'
-                          : 'bg-white text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  );
-                })}
+                <div className="sticky top-0 z-10 bg-white border-b border-slate-100 p-2">
+                  <input
+                    type="text"
+                    value={techSearch}
+                    onChange={(e) => setTechSearch(e.target.value)}
+                    placeholder="Search technology..."
+                    autoFocus
+                    className="w-full rounded-md border border-slate-200 bg-white px-2 py-1 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+                  />
+                </div>
+                {filteredTechOptions.length ? (
+                  filteredTechOptions.map((opt) => {
+                    const selected = form.technology.includes(opt);
+                    return (
+                      <button
+                        key={opt}
+                        type="button"
+                        onClick={() => toggleTechOption(opt)}
+                        className={`w-full text-left px-3 py-1.5 text-xs sm:text-sm border-b border-slate-100 last:border-b-0 ${
+                          selected
+                            ? 'bg-sky-100 text-slate-900'
+                            : 'bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="px-3 py-2 text-xs text-slate-500">
+                    No matching technologies
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </div>
-
-        {/* Payment */}
-        <div className="flex flex-col gap-1">
-          <label className="text-xs font-semibold text-slate-700">
-            Payment
-          </label>
-          <input
-            type="text"
-            value={form.payment}
-            onChange={handleChange('payment')}
-            placeholder="Enter payment amount"
-            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
-          />
         </div>
 
         {/* Selected toggle - always visible */}
@@ -1324,13 +1636,11 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
             </label>
             <div className="relative">
               <input
-                type="text"
+                type="date"
                 value={form.selectedDate}
                 onChange={handleChange('selectedDate')}
-                placeholder="mm/dd/yyyy"
                 className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
               />
-              <i className="fa-solid fa-calendar absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" aria-hidden="true" />
             </div>
           </div>
 
@@ -1341,13 +1651,11 @@ function AdminEditCandidateForm({ candidate, onBack, onSubmit }) {
             </label>
             <div className="relative">
               <input
-                type="text"
+                type="date"
                 value={form.joiningDate}
                 onChange={handleChange('joiningDate')}
-                placeholder="mm/dd/yyyy"
                 className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 pr-9 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
               />
-              <i className="fa-solid fa-calendar absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm pointer-events-none" aria-hidden="true" />
             </div>
           </div>
 
@@ -1425,12 +1733,14 @@ function AdminSlotsTable({
   onRejectSlot,
   onDeleteSlot,
   onOpenCandidateSlots,
+  onOpenHRView,
   hrs = [],
   loading = false,
   error = null,
   stats = null,
 }) {
   const totalSlots = slots.length;
+  // Default to this week (dropdown default), matching your request
   const [timeRange, setTimeRange] = useState('thisWeek');
   const [companyFilter, setCompanyFilter] = useState('');
   const [technologyFilter, setTechnologyFilter] = useState('');
@@ -1468,7 +1778,7 @@ function AdminSlotsTable({
   const roundOptions = useMemo(() => {
     const set = new Set();
     slots.forEach((slot) => {
-      const round = String(slot.round || '').trim();
+      const round = normaliseRoundLabelAdmin(slot.round);
       if (!round) return;
       set.add(round);
     });
@@ -1665,7 +1975,7 @@ function AdminSlotsTable({
             <span className="text-sm sm:text-base font-semibold text-slate-800">
               {approvedFilteredSlots.length}
             </span>
-            <span className="text-[11px] text-slate-500">Total Slots (Approved)</span>
+            <span className="text-[11px] text-slate-500">Total Slots</span>
           </div>
           <div className="flex flex-col items-center">
             <span className="text-sm sm:text-base font-semibold text-slate-800">
@@ -1727,17 +2037,25 @@ function AdminSlotsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {companyFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setCompanyFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCompanyFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear company filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -1792,17 +2110,25 @@ function AdminSlotsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {technologyFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setTechnologyFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setTechnologyFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear technology filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -1857,17 +2183,25 @@ function AdminSlotsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {roundFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setRoundFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setRoundFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear round filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -1922,17 +2256,25 @@ function AdminSlotsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {hrFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setHrFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setHrFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear HR filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -2032,7 +2374,7 @@ function AdminSlotsTable({
                   Created At
                 </th>
                 <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
-                  Date
+                  Slot Date Time
                 </th>
                 <th className="px-3 py-2 text-left font-semibold border-b border-r border-slate-200">
                   Status
@@ -2044,7 +2386,11 @@ function AdminSlotsTable({
             </thead>
             <tbody>
               {paginatedSlots.map((slot, index) => {
-                const isPending = slot.status === 'Pending' || slot.status === 'pending';
+                const status = String(slot.status || '').trim();
+                const isPending =
+                  status === 'Pending' ||
+                  status === 'pending' ||
+                  status === 'Pending Approval';
                 const isApproved = slot.status === 'Approved';
                 const isRejected = slot.status === 'Rejected';
 
@@ -2079,6 +2425,15 @@ function AdminSlotsTable({
                     ? createdParts[1].trim()
                     : '';
 
+                const approvedExactRaw = String(slot.updatedAtExactLabel || '');
+                const approvedParts = approvedExactRaw.split(',');
+                const approvedDatePart =
+                  (approvedParts[0] && approvedParts[0].trim()) || slot.updatedAtLabel || '';
+                const approvedTimePart =
+                  approvedParts.length > 1 && approvedParts[1] && approvedParts[1].trim()
+                    ? approvedParts[1].trim()
+                    : '';
+
                 const slotId = slot.firestoreId || slot.id;
                 return (
                   <tr
@@ -2086,7 +2441,7 @@ function AdminSlotsTable({
                     className="border-b border-slate-200 hover:bg-slate-50"
                   >
                     <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
-                      {index + 1}
+                      {startIdx + index + 1}
                     </td>
                     <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
                       {slot.candidateName || slot.name ? (
@@ -2120,26 +2475,59 @@ function AdminSlotsTable({
                           return <span className="text-slate-400">-</span>;
                         }
 
+                        const hrLinkClass = 'text-purple-600 font-semibold hover:text-purple-800 hover:underline focus:outline-none focus:underline cursor-pointer';
+
                         return (
                           <div className="flex flex-col gap-1">
                             {hrName && (
                               <div className="flex items-center gap-1.5">
                                 <i className="fa-solid fa-user-tie text-slate-500 w-3.5" aria-hidden="true" />
-                                <span>{hrName}</span>
+                                {onOpenHRView ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenHRView(hrName)}
+                                    className={hrLinkClass}
+                                  >
+                                    {hrName}
+                                  </button>
+                                ) : (
+                                  <span>{hrName}</span>
+                                )}
                               </div>
                             )}
                             {hrMobile && (
                               <div className="flex items-center gap-1.5">
                                 <i className="fa-solid fa-phone text-slate-500 w-3.5" aria-hidden="true" />
-                                <span>{hrMobile}</span>
+                                {onOpenHRView ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenHRView(hrMobile)}
+                                    className={hrLinkClass}
+                                  >
+                                    {hrMobile}
+                                  </button>
+                                ) : (
+                                  <span>{hrMobile}</span>
+                                )}
                               </div>
                             )}
                             {hrEmail && (
                               <div className="flex items-center gap-1.5">
                                 <i className="fa-solid fa-envelope text-slate-500 w-3.5" aria-hidden="true" />
-                                <span className="truncate max-w-[180px]" title={hrEmail}>
-                                  {hrEmail}
-                                </span>
+                                {onOpenHRView ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenHRView(hrEmail)}
+                                    className={`truncate max-w-[180px] ${hrLinkClass}`}
+                                    title={hrEmail}
+                                  >
+                                    {hrEmail}
+                                  </button>
+                                ) : (
+                                  <span className="truncate max-w-[180px]" title={hrEmail}>
+                                    {hrEmail}
+                                  </span>
+                                )}
                               </div>
                             )}
                           </div>
@@ -2147,7 +2535,7 @@ function AdminSlotsTable({
                       })()}
                     </td>
                     <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
-                      {slot.round || '-'}
+                      {normaliseRoundLabelAdmin(slot.round) || '-'}
                     </td>
                     <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
                       <div className="flex flex-col">
@@ -2175,11 +2563,19 @@ function AdminSlotsTable({
                       </div>
                     </td>
                     <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
-                      <div className="flex items-center gap-1.5">
-                        <i className={statusIconClass} aria-hidden="true" />
-                        <span className={`text-xs font-semibold ${statusTextClass}`}>
-                          {statusLabel}
-                        </span>
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                          <i className={statusIconClass} aria-hidden="true" />
+                          <span className={`text-xs font-semibold ${statusTextClass}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+                        {isApproved && (approvedDatePart || approvedTimePart) && (
+                          <span className="text-[11px] text-slate-500">
+                            {approvedDatePart}
+                            {approvedTimePart && `, ${approvedTimePart}`}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-3 py-2 text-center">
@@ -2255,6 +2651,7 @@ function AdminHRsTable({
   onUpdateHR,
   onDeleteHR,
   onOpenCandidateView,
+  candidateNames = [],
 }) {
   const [companyFilter, setCompanyFilter] = useState('');
   const [techFilter, setTechFilter] = useState('');
@@ -2398,7 +2795,7 @@ function AdminHRsTable({
           </button>
         </div>
 
-        {/* Right: Add HR */}
+        {/* Right: Add New HR – match candidate dashboard style */}
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             type="button"
@@ -2415,10 +2812,9 @@ function AdminHRsTable({
               });
               setShowAddModal(true);
             }}
-            className="inline-flex items-center gap-1.5 rounded-md bg-lime-500 px-3 sm:px-4 py-1.5 text-[11px] sm:text-sm font-semibold text-white shadow hover:bg-lime-600 whitespace-nowrap"
+            className="bg-green-600 hover:bg-green-700 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-[11px] sm:text-sm font-semibold whitespace-nowrap"
           >
-            <i className="fa-solid fa-plus w-4 h-4" aria-hidden="true" />
-            <span>Add HR</span>
+            + Add New HR
           </button>
         </div>
       </div>
@@ -2455,17 +2851,25 @@ function AdminHRsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {companyFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setCompanyFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setCompanyFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear company filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -2510,17 +2914,25 @@ function AdminHRsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {techFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setTechFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setTechFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear technology filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -2565,17 +2977,25 @@ function AdminHRsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {jobTypeFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setJobTypeFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setJobTypeFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear job type filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -2620,17 +3040,25 @@ function AdminHRsTable({
               </span>
               <span className="flex items-center gap-1 ml-2">
                 {addedByFilter && (
-                  <button
-                    type="button"
+                  <span
+                    role="button"
+                    tabIndex={0}
                     onClick={(e) => {
                       e.stopPropagation();
                       setAddedByFilter('');
                     }}
-                    className="text-slate-400 hover:text-slate-600 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setAddedByFilter('');
+                      }
+                    }}
+                    className="text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                     aria-label="Clear added by filter"
                   >
                     ×
-                  </button>
+                  </span>
                 )}
                 <i className="fa-solid fa-chevron-down text-[10px] text-slate-400" aria-hidden="true" />
               </span>
@@ -2734,17 +3162,38 @@ function AdminHRsTable({
                   {hr.jobType}
                 </td>
                 <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
-                  {onOpenCandidateView && hr.addedBy && hr.addedBy !== 'Admin' ? (
-                    <button
-                      type="button"
-                      onClick={() => onOpenCandidateView(hr.addedBy)}
-                      className="text-purple-600 font-semibold hover:text-purple-800 hover:underline focus:outline-none focus:underline"
-                    >
-                      {hr.addedBy}
-                    </button>
-                  ) : (
-                    hr.addedBy || '–'
-                  )}
+                  {(() => {
+                    const addedByRaw = String(hr.addedBy || '').trim();
+                    if (!addedByRaw) return '–';
+
+                    const isAdminAdded = addedByRaw.toLowerCase() === 'admin';
+                    const hasCandidate =
+                      !isAdminAdded &&
+                      Array.isArray(candidateNames) &&
+                      candidateNames.includes(addedByRaw.toLowerCase());
+
+                    if (isAdminAdded) {
+                      return addedByRaw;
+                    }
+
+                    if (!hasCandidate) {
+                      return '–';
+                    }
+
+                    if (onOpenCandidateView) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => onOpenCandidateView(addedByRaw)}
+                          className="text-purple-600 font-semibold hover:text-purple-800 hover:underline focus:outline-none focus:underline"
+                        >
+                          {addedByRaw}
+                        </button>
+                      );
+                    }
+
+                    return addedByRaw;
+                  })()}
                 </td>
                 <td className="px-3 py-2">
                   <div className="flex gap-2">
@@ -2839,7 +3288,7 @@ function AdminHRsTable({
         </div>
       )}
 
-      {/* Add HR modal */}
+      {/* Add New HR modal */}
       {showAddModal && (
         <div
           className="fixed inset-0 z-40 flex items-center justify-center bg-black/30"
@@ -2856,7 +3305,7 @@ function AdminHRsTable({
             {/* Modal header */}
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-semibold text-slate-800">
-                {modalMode === 'edit' ? 'Edit HR' : 'Add HR'}
+                {modalMode === 'edit' ? 'Edit HR' : 'Add New HR'}
               </h3>
               <button
                 type="button"
@@ -2975,11 +3424,7 @@ function AdminHRsTable({
               </button>
               <button
                 type="submit"
-                className={`inline-flex items-center gap-2 rounded-md px-5 py-1.5 text-xs sm:text-sm font-semibold text-white ${
-                  modalMode === 'edit'
-                    ? 'bg-amber-400 hover:bg-amber-500'
-                    : 'bg-lime-500 hover:bg-lime-600'
-                }`}
+                className={`bg-green-600 hover:bg-green-700 text-white px-4 sm:px-5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap inline-flex items-center gap-2`}
               >
                 <i className={`fa-solid ${modalMode === 'edit' ? 'fa-pen' : 'fa-plus'} text-xs`} aria-hidden="true" />
                 {modalMode === 'edit' ? 'Update HR' : 'Add New HR'}
@@ -2996,27 +3441,44 @@ function AdminHRsTable({
 function AdminCandidateSlotsView({ data, onBack }) {
   const { name, candidate, slots } = data;
 
-  const payment = candidate?.payment || '₹0';
   const experience =
-    candidate?.experience && candidate.experience !== '-'
+    candidate?.experience && String(candidate.experience).trim() && candidate.experience !== '-'
       ? candidate.experience
-      : 'Not specified';
+      : '0';
   const referredBy = candidate?.referredBy || 'Viraj Kadam Sir';
   const totalCount = slots.length || 0;
+  const isSelectedCandidate = !!candidate?.selected;
+  const selectedDate = candidate?.selectedDate || '-';
+  const joiningDate = candidate?.joiningDate || '-';
+  const selectedCompany = candidate?.selectedCompany || '-';
+  const selectedPackage = candidate?.package || '-';
 
-  const ROUND_LABELS = [
-    'Technical Round 1',
-       'Technical Round 2',
-    'Technical Round 3',
-    'Manageral Round',
-    'HR Round',
-    'Task Assesment',
-  ];
+const normaliseRoundLabelAdmin = (raw) => {
+  const r = String(raw || '').trim();
+  if (!r) return '';
+  const lower = r.toLowerCase();
+  if (lower === 'round 1') return 'Technical Round 1';
+  if (lower === 'round 2') return 'Technical Round 2';
+  if (lower === 'round 3') return 'Technical Round 3';
+  if (lower === 'manager round' || lower === 'managerial round') return 'Manageral Round';
+  if (lower === 'technical discussion round') return 'HR Round';
+  if (lower === 'last technical round') return 'Task Assesment';
+  return r;
+};
+
+const ROUND_LABELS = [
+  'Technical Round 1',
+  'Technical Round 2',
+  'Technical Round 3',
+  'Manageral Round',
+  'HR Round',
+  'Task Assesment',
+];
 
   const roundCounts = useMemo(() => {
     const counts = {};
     slots.forEach((slot) => {
-      const round = String(slot.round || '').trim();
+      const round = normaliseRoundLabelAdmin(slot.round);
       if (!round) return;
       counts[round] = (counts[round] || 0) + 1;
     });
@@ -3057,10 +3519,6 @@ function AdminCandidateSlotsView({ data, onBack }) {
 
       {/* Summary: all in one row, each with value centered above label */}
       <div className="mb-4 flex flex-row flex-wrap items-stretch gap-4 sm:gap-6 text-slate-700">
-        <div className="flex flex-col items-center text-center min-w-[120px]">
-          <span className="text-sm font-semibold text-slate-800">{payment}</span>
-          <span className="text-[11px] text-slate-500">Payment</span>
-        </div>
         <div className="flex flex-col items-center text-center min-w-[120px]">
           <span className="text-sm font-semibold text-slate-800">{experience}</span>
           <span className="text-[11px] text-slate-500">Experience</span>
@@ -3105,6 +3563,34 @@ function AdminCandidateSlotsView({ data, onBack }) {
           </span>
           <span className="text-[11px] text-slate-500">Task Assesment</span>
         </div>
+        {isSelectedCandidate && (
+          <>
+            <div className="flex flex-col items-center text-center min-w-[140px]">
+              <span className="text-sm font-semibold text-slate-800">
+                {selectedDate}
+              </span>
+              <span className="text-[11px] text-slate-500">Selected Date</span>
+            </div>
+            <div className="flex flex-col items-center text-center min-w-[140px]">
+              <span className="text-sm font-semibold text-slate-800">
+                {joiningDate}
+              </span>
+              <span className="text-[11px] text-slate-500">Joining Date</span>
+            </div>
+            <div className="flex flex-col items-center text-center min-w-[140px]">
+              <span className="text-sm font-semibold text-slate-800">
+                {selectedCompany}
+              </span>
+              <span className="text-[11px] text-slate-500">Selected Company</span>
+            </div>
+            <div className="flex flex-col items-center text-center min-w-[140px]">
+              <span className="text-sm font-semibold text-slate-800">
+                {selectedPackage}
+              </span>
+              <span className="text-[11px] text-slate-500">Package</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Slots cards: 4-column grid on large screens */}
@@ -3112,6 +3598,7 @@ function AdminCandidateSlotsView({ data, onBack }) {
         {slots.map((slot) => {
           const isApproved = slot.status === 'Approved';
           const isRejected = slot.status === 'Rejected';
+          const timeLabelPlain = String(slot.timeLabel || '').split('(')[0].trim();
 
           return (
             <div
@@ -3122,34 +3609,35 @@ function AdminCandidateSlotsView({ data, onBack }) {
                 <div className="flex-1 min-w-0">
                   <div>
                     <div className="font-semibold text-slate-900">{slot.company}</div>
-              <div className="text-[11px] text-slate-500">Company</div>
+                    <div className="text-[11px] text-slate-500">Company</div>
                   </div>
 
-              <div className="mt-1">
-                <div className="text-slate-800">{slot.technology}</div>
-                <div className="text-[11px] text-slate-500">Technology</div>
-              </div>
-
-              <div className="mt-1">
-                <div className="text-slate-800">{slot.round}</div>
-                <div className="text-[11px] text-slate-500">Round</div>
+                  <div className="mt-1">
+                    <div className="text-slate-800">{slot.technology}</div>
+                    <div className="text-[11px] text-slate-500">Technology</div>
                   </div>
-              </div>
+
+                  <div className="mt-1">
+                    <div className="text-slate-800">{normaliseRoundLabelAdmin(slot.round)}</div>
+                    <div className="text-[11px] text-slate-500">Round</div>
+                  </div>
+                </div>
 
                 <div className="flex-shrink-0 text-right">
                   <div className="flex items-center justify-end gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                <span className="text-emerald-600 font-semibold">
-                  {isApproved
-                    ? 'Approved'
-                    : isRejected
-                    ? 'Rejected'
-                    : 'Pending'}
-                </span>
-              </div>
+                    <span className="text-emerald-600 font-semibold">
+                      {isApproved
+                        ? 'Approved'
+                        : isRejected
+                        ? 'Rejected'
+                        : 'Pending'}
+                    </span>
+                  </div>
                   <div className="text-[11px] text-slate-500">Status</div>
-                  <div className="text-slate-800 mt-1">{slot.dateLabel}</div>
-                <div className="text-slate-800">{slot.timeLabel}</div>
+                  <div className="text-slate-800 mt-1">
+                    {slot.dateExactLabel || slot.dateLabel}
+                  </div>
+                  <div className="text-slate-800">{timeLabelPlain}</div>
                   <div className="text-[11px] text-slate-500">Date & Time</div>
                 </div>
               </div>
@@ -3382,11 +3870,11 @@ function AdminLeavesTable({ onBackToHome }) {
   );
 }
 
-// Bar graph for Statistics tab – Y-axis rotated "Total Slots", fixed 0–60 scale like reference, grid, x-axis month labels
+// Bar graph for Statistics tab – Y-axis rotated "Total Slots", fixed 0–100 scale, grid, x-axis month labels
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const CHART_BODY_HEIGHT = 200;
-const Y_AXIS_MAX = 60; // Fixed scale 0–60 so axis always matches reference screenshot
-const Y_TICKS = [0, 10, 20, 30, 40, 50, 60];
+const CHART_BODY_HEIGHT = 260;
+const Y_AXIS_MAX = 100; // Fixed scale 0–100 so axis always matches requested range
+const Y_TICKS = [0, 20, 40, 60, 80, 100];
 
 function AdminStatisticsChart({ slots = [], onReload }) {
   const monthlyStats = useMemo(() => {
@@ -3417,11 +3905,11 @@ function AdminStatisticsChart({ slots = [], onReload }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
 
   return (
-    <div className="bg-white rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6">
+    <div className="bg-white rounded-2xl shadow-md border border-slate-200 px-4 py-5 sm:px-6 sm:py-6">
       <div className="flex items-center justify-center gap-2">
-      <h2 className="text-sm sm:text-base font-semibold text-slate-800">
-        Monthly Slot Statistics
-      </h2>
+        <h2 className="text-sm sm:text-base font-semibold text-slate-800">
+          Statistic
+        </h2>
         {typeof onReload === 'function' && (
           <button
             type="button"
@@ -3503,7 +3991,7 @@ function AdminStatisticsChart({ slots = [], onReload }) {
                     >
                       {isHovered && (
                         <div
-                          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1.5 rounded-md bg-slate-800 text-white text-xs font-medium whitespace-nowrap z-20 shadow-lg"
+                          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 px-2 py-1.5 rounded-md bg-slate-800/95 text-white text-xs font-medium whitespace-nowrap z-50 shadow-lg pointer-events-none"
                           role="tooltip"
                         >
                           {item.label}: {item.value} slot{item.value !== 1 ? 's' : ''}
@@ -3541,9 +4029,12 @@ function AdminStatisticsChart({ slots = [], onReload }) {
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('home');
   const [showAddForm, setShowAddForm] = useState(false);
+  // Default to showing Unselected candidates, matching your other project
   const [candidateFilter, setCandidateFilter] = useState('unselected');
   const [candidateSearch, setCandidateSearch] = useState('');
   const [candidates, setCandidates] = useState(MOCK_CANDIDATES);
+  const candidateByIdCacheRef = useRef(new Map());
+  const hrByIdCacheRef = useRef(new Map());
   const [showHrSuccessToast, setShowHrSuccessToast] = useState(false);
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
   const adminTodayLabel = new Date().toLocaleDateString('en-GB', {
@@ -3552,55 +4043,69 @@ export default function AdminDashboard() {
     year: 'numeric',
   });
 
-  // Load candidates from Firestore on mount (and avoid duplicates by mobile)
+  // Load candidates from Firestore on mount.
+  // Mirrors the working project logic: read directly from "candidates" only.
   useEffect(() => {
     const loadCandidatesFromFirestore = async () => {
       try {
-        const q = query(collection(db, 'users'), where('role', '==', 'candidate'));
-        const querySnapshot = await getDocs(q);
-        const docs = [];
+        const snap = await getDocs(collection(db, 'candidates'));
+        if (snap.empty) {
+          setCandidates([]);
+          return;
+        }
 
-        querySnapshot.forEach((docSnap) => {
-          docs.push({ id: docSnap.id, ...docSnap.data() });
+        const list = snap.docs.map((docSnap) => {
+          const d = docSnap.data() || {};
+
+          // Normalise technology into array for this UI
+          let technologies = [];
+          if (Array.isArray(d.technology)) {
+            technologies = d.technology;
+          } else if (typeof d.technology === 'string' && d.technology.trim()) {
+            technologies = d.technology.split(',').map((t) => t.trim()).filter(Boolean);
+          }
+
+          // Keep both spellings so filters work
+          const referredBy = d.referredBy || d.refereedBy || '';
+
+          return {
+            id: docSnap.id,
+            firestoreId: docSnap.id,
+            sourceCollection: 'candidates',
+            name: d.name || 'New Candidate',
+            mobile: String(d.mobile ?? d.phone ?? '').trim(),
+            experience: d.experience || d.totalExp || '0',
+            technologies,
+            totalScheduled: '0',
+            lastInterview: '-',
+            payment: typeof d.payment === 'number' ? `₹${d.payment}` : d.payment || '₹0',
+            status: d.isActive === false ? 'Inactive' : 'Active',
+            selected: !!d.isSelected,
+            referredBy,
+            password: String(d.password ?? '').trim(),
+            // Selected candidate details (if present from Firestore)
+            selectedDate: d.selectedDate || '',
+            joiningDate: d.joiningDate || '',
+            selectedCompany: d.selectedCompany || '',
+            package: d.selectedPackage || d.package || '',
+          };
         });
 
-        if (docs.length === 0) return;
-
-        setCandidates((prev) => {
-          const mobiles = new Set(prev.map((c) => c.mobile));
-          let maxId = prev.length > 0 ? Math.max(...prev.map((c) => c.id)) : 0;
-          const additions = [];
-
-          docs.forEach((data) => {
-            if (!data.mobile || mobiles.has(data.mobile)) {
-              return;
-            }
-            mobiles.add(data.mobile);
-            maxId += 1;
-            additions.push({
-              id: maxId,
-              firestoreId: data.id, // keep Firestore user document id
-              name: data.name || 'New Candidate',
-              mobile: data.mobile || '',
-              experience: data.experience || '0',
-              technologies: Array.isArray(data.technology)
-                ? data.technology
-                : data.technology
-                ? [data.technology]
-                : [],
-              totalScheduled: '0',
-              lastInterview: '-',
-              payment: data.payment || '₹0',
-              status: 'Active',
-              selected: false,
-            });
-          });
-
-          if (additions.length === 0) return prev;
-          return [...prev, ...additions];
+        // Sort newest first by createdAt if present, otherwise by id
+        list.sort((a, b) => {
+          const aCreated = snap.docs.find((d) => d.id === a.id)?.data()?.createdAt;
+          const bCreated = snap.docs.find((d) => d.id === b.id)?.data()?.createdAt;
+          const aSec = aCreated?.seconds || 0;
+          const bSec = bCreated?.seconds || 0;
+          if (aSec !== bSec) return bSec - aSec;
+          return String(b.id).localeCompare(String(a.id));
         });
+
+        setCandidates(list);
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error('Error loading candidates from Firestore:', err);
+        setCandidates([]);
       }
     };
 
@@ -3610,11 +4115,22 @@ export default function AdminDashboard() {
   // Load HRs from Firestore on mount and listen for real-time updates
   useEffect(() => {
     const q = query(collection(db, 'hrs'));
+    let cancelled = false;
+
+    const looksLikeIdOrMobile = (val) => {
+      const s = String(val || '').trim();
+      if (!s) return false;
+      // mobile-like
+      if (/^\d{8,}$/.test(s)) return true;
+      // firestore id-like / uid-like
+      if (/^[A-Za-z0-9_-]{15,}$/.test(s) && !/\s/.test(s)) return true;
+      return false;
+    };
     
     // Real-time listener for HRs collection
     const unsubscribe = onSnapshot(
       q,
-      (querySnapshot) => {
+      async (querySnapshot) => {
         const firestoreHRs = [];
         
         querySnapshot.forEach((doc) => {
@@ -3628,13 +4144,78 @@ export default function AdminDashboard() {
             company: data.company || '',
             technology: data.technology || '',
             jobType: data.jobType || '',
-            addedBy: data.addedBy || 'Candidate',
+            // Support multiple legacy field names from other projects
+            addedBy: data.addedBy || data.addedByName || data.createdBy || '',
+            addedById: data.addedById || data.createdById || data.createdByUid || null,
             createdAt: data.createdAt,
           });
         });
+
+        // Enrich "Added By" with candidate name when only addedById is available
+        const needAddedByIds = [
+          ...new Set(
+            firestoreHRs
+              .map((h) => {
+                const rawAddedBy = String(h.addedBy || '').trim();
+                const rawAddedById = String(h.addedById || '').trim();
+                // Prefer explicit id field, otherwise attempt to resolve when "addedBy" looks like an id/mobile.
+                const key = rawAddedById || (looksLikeIdOrMobile(rawAddedBy) ? rawAddedBy : '');
+                const displayLooksGeneric =
+                  !rawAddedBy || rawAddedBy.toLowerCase() === 'candidate' || rawAddedBy.toLowerCase() === 'admin';
+                return displayLooksGeneric && key ? key : key && looksLikeIdOrMobile(key) ? key : '';
+              })
+              .filter(Boolean),
+          ),
+        ];
+
+        await Promise.all(
+          needAddedByIds.map(async (addedById) => {
+            if (!addedById || candidateByIdCacheRef.current.has(addedById)) return;
+            try {
+              // 1) Try direct doc id lookup
+              const directSnap = await getDoc(doc(db, 'candidates', addedById));
+              if (directSnap.exists()) {
+                candidateByIdCacheRef.current.set(addedById, directSnap.data());
+                return;
+              }
+            } catch {
+              // ignore
+            }
+
+            // 2) Fallback: candidates where mobile == addedById (when we store mobile as uid)
+            try {
+              const mobileQ = query(collection(db, 'candidates'), where('mobile', '==', addedById));
+              const mobileSnap = await getDocs(mobileQ);
+              const first = mobileSnap.docs[0];
+              if (first?.exists?.()) {
+                candidateByIdCacheRef.current.set(addedById, first.data());
+              }
+            } catch {
+              // ignore
+            }
+          }),
+        );
+
+        if (cancelled) return;
+
+        const enrichedFirestoreHRs = firestoreHRs.map((h) => {
+          const rawAddedBy = String(h.addedBy || '').trim();
+          // If addedBy is a real name, keep it.
+          if (rawAddedBy && rawAddedBy.toLowerCase() !== 'candidate' && rawAddedBy.toLowerCase() !== 'admin' && !looksLikeIdOrMobile(rawAddedBy)) {
+            return { ...h, addedBy: rawAddedBy };
+          }
+
+          const key = String(h.addedById || '').trim() || (looksLikeIdOrMobile(rawAddedBy) ? rawAddedBy : '');
+          const candidateDoc = key ? candidateByIdCacheRef.current.get(key) : null;
+          const resolved = String(candidateDoc?.name || '').trim();
+          return {
+            ...h,
+            addedBy: resolved || (rawAddedBy || 'Candidate'),
+          };
+        });
         
         // Sort by createdAt descending (newest first) - convert Timestamp to number for comparison
-        firestoreHRs.sort((a, b) => {
+        enrichedFirestoreHRs.sort((a, b) => {
           const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds || 0;
           const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds || 0;
           return bTime - aTime; // Descending order (newest first)
@@ -3644,11 +4225,11 @@ export default function AdminDashboard() {
         setHrs((prev) => {
           const mockHRs = prev.filter((h) => !String(h.id).startsWith('firestore_'));
           const existingEmails = new Set(
-            [...mockHRs, ...firestoreHRs].map((h) => h.email?.toLowerCase())
+            [...mockHRs, ...enrichedFirestoreHRs].map((h) => h.email?.toLowerCase())
           );
           
           // Filter out duplicates from Firestore HRs
-          const uniqueFirestoreHRs = firestoreHRs.filter(
+          const uniqueFirestoreHRs = enrichedFirestoreHRs.filter(
             (h) => !mockHRs.some((m) => m.email?.toLowerCase() === h.email?.toLowerCase())
           );
           
@@ -3671,7 +4252,10 @@ export default function AdminDashboard() {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   const [slotFilter, setSlotFilter] = useState('all');
@@ -3687,11 +4271,83 @@ export default function AdminDashboard() {
     setSlotsError(null);
     const slotsRef = collection(db, 'events');
     const q = query(slotsRef, orderBy('createdAt', 'desc'));
+    let cancelled = false;
+
+    const enrichSlotsWithNames = async (uiSlots) => {
+      // Only enrich when name fields are missing (older events may have only ids)
+      const needCandidate = uiSlots
+        .filter((s) => !String(s.candidateName || s.name || '').trim() && String(s.candidateId || '').trim())
+        .map((s) => String(s.candidateId).trim());
+      const needHr = uiSlots
+        .filter((s) => !String(s.hrName || '').trim() && String(s.hrId || '').trim())
+        .map((s) => String(s.hrId).trim());
+
+      const uniqueCandidateIds = [...new Set(needCandidate)].filter(
+        (id) => id && !candidateByIdCacheRef.current.has(id),
+      );
+      const uniqueHrIds = [...new Set(needHr)].filter(
+        (id) => id && !hrByIdCacheRef.current.has(id),
+      );
+
+      // Fetch missing candidate docs
+      await Promise.all(
+        uniqueCandidateIds.map(async (id) => {
+          try {
+            const snap = await getDoc(doc(db, 'candidates', id));
+            if (snap.exists()) candidateByIdCacheRef.current.set(id, snap.data());
+          } catch {
+            // ignore
+          }
+        }),
+      );
+
+      // Fetch missing HR docs
+      await Promise.all(
+        uniqueHrIds.map(async (id) => {
+          try {
+            const snap = await getDoc(doc(db, 'hrs', id));
+            if (snap.exists()) hrByIdCacheRef.current.set(id, snap.data());
+          } catch {
+            // ignore
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      const enriched = uiSlots.map((s) => {
+        const candidateId = String(s.candidateId || '').trim();
+        const hrId = String(s.hrId || '').trim();
+
+        const candidateDoc = candidateId ? candidateByIdCacheRef.current.get(candidateId) : null;
+        const hrDoc = hrId ? hrByIdCacheRef.current.get(hrId) : null;
+
+        const candidateName =
+          String(s.candidateName || s.name || '').trim() ||
+          String(candidateDoc?.name || '').trim();
+
+        const hrName = String(s.hrName || '').trim() || String(hrDoc?.name || '').trim();
+        const hrEmail = String(s.hrEmail || '').trim() || String(hrDoc?.email || '').trim();
+        const hrMobile = String(s.hrMobile || '').trim() || String(hrDoc?.mobile || '').trim();
+
+        return {
+          ...s,
+          candidateName: candidateName || s.candidateName || '',
+          hrName: hrName || s.hrName || '',
+          hrEmail: hrEmail || s.hrEmail || '',
+          hrMobile: hrMobile || s.hrMobile || '',
+        };
+      });
+
+      setSlots(enriched);
+    };
+
     const unsubscribe = onSnapshot(
       q,
       (snapshot) => {
         const uiSlots = slotsSnapshotToUI(snapshot);
         setSlots(uiSlots);
+        enrichSlotsWithNames(uiSlots);
         setSlotsLoading(false);
       },
       (err) => {
@@ -3700,7 +4356,10 @@ export default function AdminDashboard() {
         setSlotsLoading(false);
       },
     );
-    return () => unsubscribe();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
   }, [statsRefreshKey]);
   const [selectedSlotsCandidate, setSelectedSlotsCandidate] = useState(null);
   const [selectedViewCandidate, setSelectedViewCandidate] = useState(null);
@@ -3709,9 +4368,19 @@ export default function AdminDashboard() {
   const [hrSearch, setHrSearch] = useState('');
   const filteredSlots = useMemo(() => {
     return slots.filter((slot) => {
-      if (slotFilter === 'pending' && slot.status !== 'pending') return false;
-      if (slotFilter === 'approved' && slot.status !== 'Approved') return false;
-      if (slotFilter === 'rejected' && slot.status !== 'Rejected') return false;
+      const status = String(slot.status || '').trim();
+      if (
+        slotFilter === 'pending' &&
+        !(
+          status === 'pending' ||
+          status === 'Pending' ||
+          status === 'Pending Approval'
+        )
+      ) {
+        return false;
+      }
+      if (slotFilter === 'approved' && status !== 'Approved') return false;
+      if (slotFilter === 'rejected' && status !== 'Rejected') return false;
       if (slotSearch.trim()) {
         const q = slotSearch.toLowerCase();
         const candidateName = (slot.candidateName || '').toLowerCase();
@@ -3773,23 +4442,50 @@ export default function AdminDashboard() {
   }, [hrs, hrSearch]);
 
   const pendingApprovals = useMemo(
-    () => slots.filter((s) => s.status === 'pending').length,
+    () =>
+      slots.filter((s) => {
+        const status = String(s.status || '').trim();
+        return status === 'pending' || status === 'Pending' || status === 'Pending Approval';
+      }).length,
     [slots],
   );
 
   const pendingSlots = useMemo(
-    () => slots.filter((s) => s.status === 'pending' || s.status === 'Pending'),
+    () =>
+      slots.filter((s) => {
+        const status = String(s.status || '').trim();
+        return status === 'pending' || status === 'Pending' || status === 'Pending Approval';
+      }),
     [slots],
   );
 
-  const handleToggleStatus = (id) => {
+  const handleToggleStatus = async (id) => {
+    const candidate = candidates.find((c) => c.id === id);
+    if (!candidate) return;
+    const newStatus = candidate.status === 'Active' ? 'Inactive' : 'Active';
+    const isActive = newStatus === 'Active';
+
+    // Optimistic UI update
     setCandidates((prev) =>
       prev.map((c) =>
-        c.id === id
-          ? { ...c, status: c.status === 'Active' ? 'Inactive' : 'Active' }
-          : c,
+        c.id === id ? { ...c, status: newStatus } : c,
       ),
     );
+
+    // Persist to Firestore so inactive candidates cannot log in
+    try {
+      const docId = candidate.firestoreId || candidate.id;
+      const collectionName = candidate.sourceCollection || 'candidates';
+      await updateDoc(doc(db, collectionName, docId), { isActive });
+    } catch (err) {
+      // Revert on failure
+      setCandidates((prev) =>
+        prev.map((c) =>
+          c.id === id ? { ...c, status: candidate.status } : c,
+        ),
+      );
+      console.error('Failed to update candidate status:', err);
+    }
   };
 
   const handleDeleteCandidate = async (id) => {
@@ -3802,19 +4498,20 @@ export default function AdminDashboard() {
       // Remove from local state immediately
     setCandidates((prev) => prev.filter((c) => c.id !== id));
 
-      // Delete from Firestore "users" collection
+      // Delete from Firestore (correct collection based on source)
+      const collectionName = candidate.sourceCollection || 'candidates';
       if (candidate.firestoreId) {
-        await deleteDoc(doc(db, 'users', candidate.firestoreId));
+        await deleteDoc(doc(db, collectionName, candidate.firestoreId));
       } else if (candidate.mobile) {
         // Fallback: look up by mobile if we don't have firestoreId
         const q = query(
-          collection(db, 'users'),
+          collection(db, collectionName),
           where('mobile', '==', candidate.mobile),
         );
         const snap = await getDocs(q);
         const batchDeletions = [];
         snap.forEach((docSnap) => {
-          batchDeletions.push(deleteDoc(doc(db, 'users', docSnap.id)));
+          batchDeletions.push(deleteDoc(doc(db, collectionName, docSnap.id)));
         });
         await Promise.all(batchDeletions);
       }
@@ -3836,16 +4533,46 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleEditCandidate = (id) => {
+  const handleEditCandidate = async (id) => {
     const candidate = candidates.find((c) => c.id === id);
-    if (candidate) {
-      setEditingCandidate(candidate);
+    if (!candidate) return;
+    setEditingCandidate(candidate);
+    try {
+      const docSnap = await getDoc(doc(db, 'candidates', candidate.firestoreId || id));
+      if (docSnap.exists()) {
+        const d = docSnap.data() || {};
+        let technologies = [];
+        if (Array.isArray(d.technology)) {
+          technologies = d.technology;
+        } else if (typeof d.technology === 'string' && d.technology.trim()) {
+          technologies = d.technology.split(',').map((t) => t.trim()).filter(Boolean);
+        }
+        const fullCandidate = {
+          ...candidate,
+          name: d.name || candidate.name,
+          mobile: String(d.mobile ?? d.phone ?? '').trim() || candidate.mobile,
+          experience: d.experience || d.totalExp || candidate.experience,
+          technologies: technologies.length ? technologies : candidate.technologies || [],
+          payment: typeof d.payment === 'number' ? `₹${d.payment}` : d.payment || candidate.payment,
+          referredBy: d.referredBy || d.refereedBy || candidate.referredBy,
+          password: String(d.password ?? '').trim(),
+          selected: !!d.isSelected,
+          selectedDate: d.selectedDate || '',
+          joiningDate: d.joiningDate || '',
+          selectedCompany: d.selectedCompany || '',
+          package: d.selectedPackage || d.package || '',
+        };
+        setEditingCandidate(fullCandidate);
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to fetch candidate for edit:', err);
     }
   };
 
   const handleApproveSlot = async (id) => {
     try {
-      await updateDoc(doc(db, 'slots', id), { status: 'Approved' });
+      await updateSlotStatus(id, 'Approved');
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to approve slot:', err);
@@ -3854,7 +4581,7 @@ export default function AdminDashboard() {
 
   const handleRejectSlot = async (id) => {
     try {
-      await updateDoc(doc(db, 'slots', id), { status: 'Rejected' });
+      await updateSlotStatus(id, 'Rejected');
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to reject slot:', err);
@@ -3863,7 +4590,7 @@ export default function AdminDashboard() {
 
   const handleDeleteSlot = async (id) => {
     try {
-      await deleteDoc(doc(db, 'slots', id));
+      await deleteSlot(id);
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Failed to delete slot:', err);
@@ -3946,16 +4673,72 @@ export default function AdminDashboard() {
         pendingApprovals={pendingApprovals}
       />
       <main className="p-2 sm:p-4 md:p-8">
+        {pendingSlots.length > 0 && (
+          <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-3">
+            {pendingSlots.map((slot) => {
+              const slotId = slot.firestoreId || slot.id;
+              const slotDateStr = slot.date instanceof Date
+                ? slot.date.toISOString().slice(0, 10)
+                : slot.date;
+              const isToday = slotDateStr === new Date().toISOString().slice(0, 10);
+              return (
+                <div
+                  key={slotId}
+                  className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 flex flex-col gap-2 text-xs sm:text-sm"
+                >
+                  <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-slate-800">
+                    <span className="font-semibold truncate" title={slot.candidateName || slot.name}>
+                      {slot.candidateName || slot.name}
+                    </span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-600">
+                      {isToday ? (
+                        <span className="text-emerald-700 font-medium">Today</span>
+                      ) : (
+                        slot.dateExactLabel || slot.dateLabel
+                      )}
+                    </span>
+                    {slot.timeLabel && (
+                      <>
+                        <span className="text-slate-500">•</span>
+                        <span className="text-slate-600">{slot.timeLabel}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-auto">
+                    <button
+                      type="button"
+                      onClick={() => handleApproveSlot(slotId)}
+                      className="inline-flex items-center gap-1 rounded bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-600 flex-1 justify-center"
+                    >
+                      <i className="fa-solid fa-check" aria-hidden="true" />
+                      Approve
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRejectSlot(slotId)}
+                      className="inline-flex items-center gap-1 rounded bg-red-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-600 flex-1 justify-center"
+                    >
+                      <i className="fa-solid fa-xmark" aria-hidden="true" />
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
         {activeTab === 'candidates' ? (
           showAddForm ? (
             <AdminAddCandidateForm
               onBack={() => setShowAddForm(false)}
               onSubmit={(data) => {
                 const nextId = candidates.length
-                  ? Math.max(...candidates.map((c) => c.id)) + 1
+                  ? Math.max(...candidates.map((c) => (typeof c.id === 'number' ? c.id : 0))) + 1
                   : 1;
                 const newCandidate = {
                   id: nextId,
+                  firestoreId: data.firestoreId || null,
                   name: data.name || `New Candidate ${nextId}`,
                   mobile: data.mobile || '0000000000',
                   experience: data.experience || '0',
@@ -3966,7 +4749,6 @@ export default function AdminDashboard() {
                     : [],
                   totalScheduled: '0',
                   lastInterview: '-',
-                  payment: data.payment || '₹0',
                   status: 'Active',
                   selected: false,
                 };
@@ -3979,7 +4761,6 @@ export default function AdminDashboard() {
               candidate={editingCandidate}
               onBack={() => setEditingCandidate(null)}
               onSubmit={(data) => {
-                const paymentVal = data.payment?.replace(/[₹,]|\s/g, '') || '0';
                 setCandidates((prev) =>
                   prev.map((c) =>
                     c.id === editingCandidate.id
@@ -3993,7 +4774,6 @@ export default function AdminDashboard() {
                             : data.technology
                             ? [data.technology]
                             : c.technologies,
-                          payment: paymentVal ? `₹${paymentVal}` : '₹0',
                           referredBy: data.referredBy || c.referredBy,
                           selected: data.selected ?? c.selected,
                           password: data.password,
@@ -4065,36 +4845,59 @@ export default function AdminDashboard() {
                   slots: candidateSlots,
                 });
               }}
+              onOpenHRView={(value) => {
+                setActiveTab('hrs');
+                setHrSearch(value || '');
+              }}
             />
           )
         ) : activeTab === 'hrs' ? (
-          <AdminHRsTable
-            hrs={filteredHRs}
-            totalCount={hrs.length}
-            search={hrSearch}
-            onBackToHome={() => setActiveTab('home')}
-            onChangeSearch={setHrSearch}
-            onDeleteHR={handleDeleteHR}
-            onOpenCandidateView={(addedByName) => {
-              const candidate = candidates.find(
-                (c) => (c.name || '').trim().toLowerCase() === (addedByName || '').trim().toLowerCase(),
-              );
-              if (candidate) {
-                const candidateSlots = slots.filter(
-                  (s) => (s.candidateName || s.name || '').trim().toLowerCase() === (candidate.name || '').trim().toLowerCase(),
+          selectedViewCandidate ? (
+            <AdminCandidateSlotsView
+              data={selectedViewCandidate}
+              onBack={() => setSelectedViewCandidate(null)}
+            />
+          ) : (
+            <AdminHRsTable
+              hrs={filteredHRs}
+              totalCount={hrs.length}
+              search={hrSearch}
+              onBackToHome={() => setActiveTab('home')}
+              onChangeSearch={setHrSearch}
+              onDeleteHR={handleDeleteHR}
+              candidateNames={candidates.map((c) => (c.name || '').trim().toLowerCase()).filter(Boolean)}
+              onOpenCandidateView={(addedByName) => {
+                const candidate = candidates.find(
+                  (c) => (c.name || '').trim().toLowerCase() === (addedByName || '').trim().toLowerCase(),
                 );
-                setSelectedViewCandidate({
-                  name: candidate.name,
-                  candidate,
-                  slots: candidateSlots,
-                });
-                setActiveTab('candidates');
-              }
-            }}
-            onAddHR={async (data) => {
+                if (candidate) {
+                  const candidateSlots = slots.filter(
+                    (s) => (s.candidateName || s.name || '').trim().toLowerCase() === (candidate.name || '').trim().toLowerCase(),
+                  );
+                  setSelectedViewCandidate({
+                    name: candidate.name,
+                    candidate,
+                    slots: candidateSlots,
+                  });
+                }
+              }}
+              onAddHR={async (data) => {
               const nextId = hrs.length
                 ? Math.max(...hrs.map((h) => (typeof h.id === 'number' ? h.id : 0))) + 1
                 : 1;
+
+              // Resolve admin identity for "Added By"
+              let adminName = 'Admin';
+              let adminId = null;
+              try {
+                const raw = sessionStorage.getItem('sb_user');
+                const parsed = raw ? JSON.parse(raw) : null;
+                if (parsed?.name) adminName = String(parsed.name).trim() || adminName;
+                if (parsed?.mobile) adminId = String(parsed.mobile).trim() || adminId;
+              } catch {
+                // ignore
+              }
+
               const newHr = {
                 id: nextId,
                 name: data.name || `HR ${nextId}`,
@@ -4103,7 +4906,8 @@ export default function AdminDashboard() {
                 company: data.company || '',
                 technology: data.technology || '',
                 jobType: data.jobType || '',
-                addedBy: data.addedBy || 'Admin',
+                addedBy: adminName,
+                addedById: adminId,
               };
               
               // Save to Firestore
@@ -4116,6 +4920,7 @@ export default function AdminDashboard() {
                   technology: newHr.technology,
                   jobType: newHr.jobType,
                   addedBy: newHr.addedBy,
+                  addedById: newHr.addedById,
                   createdAt: serverTimestamp(),
                 });
                 
@@ -4151,67 +4956,13 @@ export default function AdminDashboard() {
               );
             }}
           />
+          )
         ) : activeTab === 'stats' ? (
           <AdminStatisticsChart slots={slots} onReload={() => setStatsRefreshKey((k) => k + 1)} />
         ) : activeTab === 'leaves' ? (
           <AdminLeavesTable onBackToHome={() => setActiveTab('home')} />
         ) : (
           <>
-            {pendingSlots.length > 0 && (
-              <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-12 gap-3">
-                {pendingSlots.map((slot) => {
-                  const slotId = slot.firestoreId || slot.id;
-                  const slotDateStr = slot.date instanceof Date
-                    ? slot.date.toISOString().slice(0, 10)
-                    : slot.date;
-                  const isToday = slotDateStr === new Date().toISOString().slice(0, 10);
-                  return (
-                    <div
-                      key={slotId}
-                      className="col-span-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 flex flex-col gap-2 text-xs sm:text-sm"
-                    >
-                      <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-slate-800">
-                        <span className="font-semibold truncate" title={slot.candidateName || slot.name}>
-                          {slot.candidateName || slot.name}
-                  </span>
-                        <span className="text-slate-500">•</span>
-                        <span className="text-slate-600">
-                          {isToday ? (
-                            <span className="text-emerald-700 font-medium">Today</span>
-                          ) : (
-                            slot.dateExactLabel || slot.dateLabel
-                          )}
-                        </span>
-                        {slot.timeLabel && (
-                          <>
-                            <span className="text-slate-500">•</span>
-                            <span className="text-slate-600">{slot.timeLabel}</span>
-                          </>
-                        )}
-                </div>
-                      <div className="flex items-center gap-1.5 mt-auto">
-                  <button
-                    type="button"
-                          onClick={() => handleApproveSlot(slotId)}
-                          className="inline-flex items-center gap-1 rounded bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-600 flex-1 justify-center"
-                  >
-                    <i className="fa-solid fa-check" aria-hidden="true" />
-                    Approve
-                  </button>
-                  <button
-                    type="button"
-                          onClick={() => handleRejectSlot(slotId)}
-                          className="inline-flex items-center gap-1 rounded bg-red-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-red-600 flex-1 justify-center"
-                  >
-                    <i className="fa-solid fa-xmark" aria-hidden="true" />
-                    Reject
-                  </button>
-                </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
             <div className="min-h-[70vh] overflow-hidden rounded-lg sm:rounded-2xl border border-slate-200 bg-white shadow-sm px-4 py-6">
               {/* Admin calendar header */}
               <div className="border-b border-slate-200 pb-3 sm:pb-4">

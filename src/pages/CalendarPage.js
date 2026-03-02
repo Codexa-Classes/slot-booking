@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import Header from '../Components/Header';
 import CalendarToolbar from '../Components/CalendarToolbar';
 import SlotCalendar from '../Components/SlotCalendar';
-import { getWeekStart, formatWeekRangeLabel, getWeekDays, parseISOToDate, isSameDay } from '../calendar';
+import { getWeekStart, getWeekEndExclusive, formatWeekRangeLabel, getWeekDays, parseISOToDate, isSameDay } from '../calendar';
 import { subscribeToApprovedSlots, getLeaves } from '../firebase/slotsService';
 
 export default function CalendarPage() {
@@ -40,10 +40,8 @@ export default function CalendarPage() {
     };
   }, []);
 
-  const weekEnd = useMemo(() => {
-    const days = getWeekDays(weekStart, 6);
-    return days[days.length - 1];
-  }, [weekStart]);
+  const weekEnd = useMemo(() => getWeekDays(weekStart, 6)[5], [weekStart]);
+  const weekEndExclusive = useMemo(() => getWeekEndExclusive(weekStart, 6), [weekStart]);
 
   const rangeLabel = useMemo(
     () => formatWeekRangeLabel(weekStart, weekEnd),
@@ -63,18 +61,28 @@ export default function CalendarPage() {
     () =>
       events.filter((event) => {
         const eventDate = parseISOToDate(event.start);
-        return eventDate >= weekStart && eventDate <= weekEnd;
+        return eventDate >= weekStart && eventDate < weekEndExclusive;
       }).length,
-    [weekStart, weekEnd, events],
+    [weekStart, weekEndExclusive, events],
   );
 
   const weekEvents = useMemo(
     () =>
       events.filter((event) => {
         const eventDate = parseISOToDate(event.start);
-        return eventDate >= weekStart && eventDate <= weekEnd;
+        return eventDate >= weekStart && eventDate < weekEndExclusive;
       }),
-    [weekStart, weekEnd, events],
+    [weekStart, weekEndExclusive, events],
+  );
+
+  // Public home calendar should only show generic label "Slot Booked"
+  const displayWeekEvents = useMemo(
+    () =>
+      weekEvents.map((event) => ({
+        ...event,
+        title: 'Slot Booked',
+      })),
+    [weekEvents],
   );
 
   const handleToday = () => setWeekStart(getWeekStart(new Date()));
@@ -105,8 +113,9 @@ export default function CalendarPage() {
               <SlotCalendar
                 today={today}
                 weekStart={weekStart}
-                events={weekEvents}
+                events={displayWeekEvents}
                 leaveDates={leaveDates}
+                colorByReferrer={false}
               />
             </div>
           </div>

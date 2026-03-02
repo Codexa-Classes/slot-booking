@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import {
   getWeekStart,
   getWeekDays,
+  getWeekEndExclusive,
   formatWeekRangeLabel,
   parseISOToDate,
   isSameDay,
@@ -10,17 +11,15 @@ import CalendarToolbar from './CalendarToolbar';
 import SlotCalendar from './SlotCalendar';
 import { subscribeToApprovedSlots, getLeaves } from '../firebase/slotsService';
 
-// No props. Always uses current system date - loads approved slots for calendar.
-function WeekCalendar() {
+// candidateIds: when provided (candidate dashboard), other slots show "Slot Booked" + blue; own slots show name + referrer color.
+function WeekCalendar({ candidateIds = [] }) {
   const today = new Date();
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [events, setEvents] = useState([]);
   const [leaveDates, setLeaveDates] = useState([]);
 
   useEffect(() => {
-    const unsubscribe = subscribeToApprovedSlots((approvedEvents) => {
-      setEvents(approvedEvents);
-    });
+    const unsubscribe = subscribeToApprovedSlots((evts) => setEvents(evts));
     return () => unsubscribe();
   }, []);
 
@@ -28,10 +27,8 @@ function WeekCalendar() {
     getLeaves().then((list) => setLeaveDates(list.map((l) => l.date).filter(Boolean)));
   }, []);
 
-  const weekEnd = useMemo(() => {
-    const days = getWeekDays(weekStart, 6);
-    return days[days.length - 1];
-  }, [weekStart]);
+  const weekEnd = useMemo(() => getWeekDays(weekStart, 6)[5], [weekStart]);
+  const weekEndExclusive = useMemo(() => getWeekEndExclusive(weekStart, 6), [weekStart]);
 
   const rangeLabel = useMemo(
     () => formatWeekRangeLabel(weekStart, weekEnd),
@@ -50,18 +47,18 @@ function WeekCalendar() {
     () =>
       events.filter((event) => {
         const eventDate = parseISOToDate(event.start);
-        return eventDate >= weekStart && eventDate <= weekEnd;
+        return eventDate >= weekStart && eventDate < weekEndExclusive;
       }).length,
-    [weekStart, weekEnd, events],
+    [weekStart, weekEndExclusive, events],
   );
 
   const weekEvents = useMemo(
     () =>
       events.filter((event) => {
         const eventDate = parseISOToDate(event.start);
-        return eventDate >= weekStart && eventDate <= weekEnd;
+        return eventDate >= weekStart && eventDate < weekEndExclusive;
       }),
-    [weekStart, weekEnd, events],
+    [weekStart, weekEndExclusive, events],
   );
 
   const handleToday = () => setWeekStart(getWeekStart(new Date()));
@@ -93,6 +90,7 @@ function WeekCalendar() {
             weekStart={weekStart}
             events={weekEvents}
             leaveDates={leaveDates}
+            candidateIds={candidateIds}
           />
         </div>
       </div>

@@ -39,16 +39,27 @@ export function formatDateDDMMYYYY(dateVal) {
  * Expects slot with: date (Date), startHour, startMinute, duration, candidateName, company.
  */
 export function slotToCalendarEvent(slot) {
+  const candidateId = String(slot.candidateId || '').trim();
+  const extendedProps = {
+    company: slot.company || slot.companyName || '',
+    technology: slot.technology || '',
+    candidateName: slot.candidateName || slot.name || '',
+    status: slot.status || '',
+    interviewRound: slot.round || slot.interviewRound || '',
+    referredBy: slot.referredBy || slot.refereedBy || '',
+  };
+
   // Prefer explicit start/end ISO timestamps when present (events schema).
   if (slot.startISO && slot.endISO) {
-    const title = [slot.candidateName || slot.name || 'Slot', slot.company]
-      .filter(Boolean)
-      .join(' - ');
+    const title = slot.candidateName || slot.name || 'Slot';
     return {
       id: slot.id || slot.firestoreId,
       start: slot.startISO,
       end: slot.endISO,
       title: title || 'Interview',
+      candidateId,
+      referredBy: slot.referredBy || slot.refereedBy || '',
+      extendedProps,
     };
   }
 
@@ -57,25 +68,116 @@ export function slotToCalendarEvent(slot) {
   const start = new Date(d);
   start.setHours(slot.startHour ?? 0, slot.startMinute ?? 0, 0, 0);
   const end = new Date(start.getTime() + (slot.duration || 30) * 60 * 1000);
-  const title = [slot.candidateName || slot.name || 'Slot', slot.company].filter(Boolean).join(' - ');
+  const title = slot.candidateName || slot.name || 'Slot';
   return {
     id: slot.id || slot.firestoreId,
     start: start.toISOString(),
     end: end.toISOString(),
     title: title || 'Interview',
+    candidateId,
+    referredBy: slot.referredBy || slot.refereedBy || '',
+    extendedProps,
   };
 }
 
 /**
  * Subscribe to approved slots and call callback with calendar events.
- * Returns unsubscribe function.
+ * Loads all slots and filters client-side to avoid Firestore query/index issues.
  */
 export function subscribeToApprovedSlots(callback) {
   const slotsRef = collection(db, SLOTS_COLLECTION);
-  const q = query(
+
+  // Cache of candidateId -> { name, referredBy } so calendar can show
+  // candidate name and color slots by referrer, even for legacy events.
+  let candidatesCache = null;
+
+  const ensureCandidatesCache = async () => {
+    if (candidatesCache) return candidatesCache;
+    const snap = await getDocs(collection(db, 'candidates'));
+    const map = {};
+    snap.forEach((d) => {
+      const data = d.data() || {};
+      const name = (data.name || '').trim();
+      const referredBy = (data.referredBy || data.refereedBy || '').trim();
+      if (name) {
+        map[d.id] = { name, referredBy };
+      }
+    });
+    candidatesCache = map;
+    return candidatesCache;
+  };
+
+  const processSnapshot = async (snapshot) => {
+    try {
+      await ensureCandidatesCache();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Error loading candidates for calendar:', err);
+    }
+
+    const allSlots = snapshot.docs.map((d) => {
+      const slot = slotDocToUI(d);
+      const id = (slot.candidateId || '').trim();
+      const cacheEntry = id && candidatesCache ? candidatesCache[id] : null;
+
+      let candidateName = (slot.candidateName || slot.name || '').trim();
+      let referredBy = (slot.referredBy || slot.refereedBy || '').trim();
+
+      if (!candidateName && cacheEntry?.name) {
+        candidateName = cacheEntry.name;
+      }
+      if (!referredBy && cacheEntry?.referredBy) {
+        referredBy = cacheEntry.referredBy;
+      }
+
+      return {
+        ...slot,
+        candidateName,
+        referredBy,
+      };
+    });
+
+    // Filter to approved only (handle both 'Approved' and 'approved')
+    const approvedSlots = allSlots.filter((slot) => {
+      const s = String(slot.status || '').trim();
+      return s === 'Approved' || s === 'approved';
+    });
+
+    const events = approvedSlots.map(slotToCalendarEvent);
+    callback(events);
+  };
+
+  // Subscribe to ALL events (no status filter) - avoids index/query issues
+  return onSnapshot(
     slotsRef,
-    where('status', '==', 'Approved'),
+    (snapshot) => {
+      processSnapshot(snapshot);
+    },
+    (err) => {
+      console.error('Error subscribing to slots for calendar:', err);
+      callback([]);
+    },
   );
+}
+
+/**
+ * Subscribe to a candidate's own slots (any status: pending, approved, etc.).
+ * Use for candidate dashboard calendar so they see their booked slots.
+ * candidateIds: array of ids to match (Firestore doc ID, mobile, or Firebase UID).
+ */
+export function subscribeToCandidateSlots(candidateIds, callback) {
+  const ids = (candidateIds || []).filter(Boolean);
+  if (ids.length === 0) {
+    callback([]);
+    return () => {};
+  }
+
+  const slotsRef = collection(db, SLOTS_COLLECTION);
+  const q =
+    ids.length === 1
+      ? query(slotsRef, where('candidateId', '==', ids[0]))
+      : query(slotsRef, where('candidateId', 'in', ids));
+
   return onSnapshot(
     q,
     (snapshot) => {
@@ -84,7 +186,7 @@ export function subscribeToApprovedSlots(callback) {
       callback(events);
     },
     (err) => {
-      console.error('Error subscribing to approved slots:', err);
+      console.error('Error subscribing to candidate slots:', err);
       callback([]);
     },
   );
@@ -310,6 +412,8 @@ function slotDocToUI(docSnapshot) {
     timeLabel: formatTimeLabel(startHour, startMinute, finalDuration),
     createdAtLabel: formatCreatedAt(data.createdAt),
     createdAtExactLabel: formatCreatedAtExact(data.createdAt),
+    updatedAtLabel: formatCreatedAt(data.updatedAt),
+    updatedAtExactLabel: formatCreatedAtExact(data.updatedAt),
   };
 }
 

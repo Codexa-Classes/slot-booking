@@ -235,10 +235,9 @@ export default function AddHRModal({ isOpen, onClose, onAdd }) {
 
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-lime-400 hover:bg-lime-500 text-white font-semibold h-9"
+              className="bg-green-600 hover:bg-green-700 text-white px-4 sm:px-5 py-2 rounded-lg text-sm font-semibold whitespace-nowrap inline-flex items-center gap-2 h-9"
             >
-              <span className="text-lg font-bold">+</span>
-              Add New HR
+              + Add New HR
             </button>
           </div>
         </form>

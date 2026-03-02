@@ -18,7 +18,7 @@ function dayToYYYYMMDD(d) {
   return `${y}-${m}-${day}`;
 }
 
-function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) {
+function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [], colorByReferrer = true, candidateIds = [] }) {
   const today = todayProp ?? new Date();
   const todayString = today.toDateString();
   const days = useMemo(() => getWeekDays(weekStart, 6), [weekStart]);
@@ -30,7 +30,16 @@ function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) 
         .map((event) => {
           const start = parseISOToDate(event.start);
           const end = parseISOToDate(event.end);
-          return { ...event, __startDate: start, __endDate: end };
+          return {
+            ...event,
+            __startDate: start,
+            __endDate: end,
+            // Normalise candidateName from either top-level or extendedProps
+            candidateName:
+              (event.candidateName ||
+                event.extendedProps?.candidateName ||
+                '').trim(),
+          };
         })
         .filter(
           (event) =>
@@ -44,10 +53,10 @@ function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) 
   const todayIndex = days.findIndex(
     (d) => d.toDateString() === todayString,
   );
-  const totalHours = HOURS.length;
   const currentHour = today.getHours();
-  const todayIndicatorOffset =
-    ((currentHour - HOURS[0]) / totalHours) * 100;
+  const currentMinutes = today.getMinutes();
+  const withinHoursRange =
+    currentHour >= HOURS[0] && currentHour <= HOURS[HOURS.length - 1];
 
   return (
     <div className="relative bg-white">
@@ -88,16 +97,16 @@ function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) 
                   >
                     {/* Mobile: stack weekday and date to avoid mixing/overlap */}
                     <div className="sm:hidden flex flex-col items-center leading-tight">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.12em]">
+                      <span className="text-[14px] font-semibold uppercase tracking-[0.12em]">
                         {dayHeader.weekday}
                       </span>
-                      <span className="text-[10px] text-slate-700">
+                      <span className="text-[14px] text-slate-700">
                         {dayHeader.label.replace(`${dayHeader.weekday}, `, '')}
                       </span>
                     </div>
                     {/* Desktop / tablet: keep single-line compact header */}
                     <div className="hidden sm:block">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.16em] whitespace-nowrap">
+                      <span className="text-[14px] font-semibold uppercase tracking-[0.16em] whitespace-nowrap">
                         {dayHeader.weekday}{' '}
                         {dayHeader.label.replace(`${dayHeader.weekday}, `, '')}
                       </span>
@@ -113,24 +122,41 @@ function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) 
             </tr>
           </thead>
           <tbody>
-            {HOURS.map((hour) => (
+            {HOURS.map((hour) => {
+              const isCurrentHour = hour === currentHour;
+              const minuteOffset = (currentMinutes / 60) * 100;
+              return (
               <tr key={hour}>
                 {/* Time label cell - same row as the slot row */}
                 <td
-                  className="border border-slate-300 bg-slate-50 text-right pr-3 text-[11px] font-medium text-slate-500 align-top"
+                  className="relative border border-slate-300 bg-slate-50 text-right pr-3 text-[14px] font-medium text-slate-500 align-top overflow-visible"
                   style={{ height: ROW_HEIGHT }}
                 >
                   {hourLabel(hour)}
+                  <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300/40 pointer-events-none -translate-y-px" />
                 </td>
                 {days.map((day, dayIdx) => {
                   const isToday = dayIdx === todayIndex;
                   const isLeaveDay = leaveSet.has(dayToYYYYMMDD(day));
                   const dayHeader = formatDayHeader(day);
                   const dayEvents = eventsByDay[dayIdx] || [];
+                  // Include any event whose time range overlaps this hour block
+                  const hourStartMinutes = hour * 60;
+                  const hourEndMinutes = (hour + 1) * 60;
                   const hourEvents =
-                    dayEvents.filter(
-                      (event) => event.__startDate.getHours() === hour,
-                    ) || [];
+                    dayEvents.filter((event) => {
+                      if (!(event.__startDate instanceof Date) || !(event.__endDate instanceof Date)) {
+                        return false;
+                      }
+                      if (Number.isNaN(event.__startDate.getTime()) || Number.isNaN(event.__endDate.getTime())) {
+                        return false;
+                      }
+                      const slotStartMinutes =
+                        event.__startDate.getHours() * 60 + event.__startDate.getMinutes();
+                      const slotEndMinutes =
+                        event.__endDate.getHours() * 60 + event.__endDate.getMinutes();
+                      return slotEndMinutes > hourStartMinutes && slotStartMinutes < hourEndMinutes;
+                    }) || [];
 
                   return (
                     <td
@@ -142,29 +168,121 @@ function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) 
                           ? 'bg-emerald-50 border-emerald-200'
                           : 'bg-white border-slate-300'
                       }`}
-                      style={{ height: ROW_HEIGHT }}
+                      style={{ height: ROW_HEIGHT, padding: 0 }}
                     >
-                      <div className="relative h-full px-1.5 py-1">
-                        <div className="absolute inset-x-1 top-1 bottom-1 rounded-lg bg-slate-50/40" />
-                        {hourEvents.map((event, idx) => (
-                          <div
-                            key={`${event.title}-${idx}`}
-                            className="relative z-10 rounded-lg border border-amber-200 bg-indigo-600 px-2 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[0.9rem] text-white shadow-sm w-full max-w-full break-words overflow-hidden"
-                          >
-                            <div className="text-[10px] sm:text-[11px] font-semibold">
-                              {event.title}
+                      <div className="relative h-full px-0 py-0">
+                        {/* 1/2 hour faint line */}
+                        <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300/40 pointer-events-none -translate-y-px" />
+                        {hourEvents.map((event, idx) => {
+                          const isCandidateView = candidateIds.length > 0;
+                          const isOwnSlot =
+                            isCandidateView &&
+                            event.candidateId &&
+                            candidateIds.includes(event.candidateId);
+
+                          let mainLabel = event.title;
+                          let timeLabel = '';
+
+                          // Candidate calendar:
+                          // - Own slots: "<Name or You>" on first line, time on second line
+                          // - Other slots: "Slot Booked" on first line, time on second line (no other name)
+                          if (isCandidateView && event.__startDate && event.__endDate) {
+                            const startLabel = event.__startDate.toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            });
+                            const endLabel = event.__endDate.toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            });
+                            timeLabel = `${startLabel} - ${endLabel}`;
+
+                            if (isOwnSlot) {
+                              const name = (event.candidateName || '').trim();
+                              mainLabel = name || 'You';
+                            } else {
+                              mainLabel = 'Slot Booked';
+                            }
+                          } else if (isCandidateView && !isOwnSlot) {
+                            // Fallback when we don't have parsed dates: no name, generic label
+                            mainLabel = 'Slot Booked';
+                          }
+
+                          if (!isCandidateView) {
+                            mainLabel = event.title;
+                            timeLabel = '';
+                          }
+
+                          // Compute vertical position and height within this hour cell
+                          let topPct = 0;
+                          let heightPct = 100;
+                          if (
+                            event.__startDate instanceof Date &&
+                            !Number.isNaN(event.__startDate.getTime()) &&
+                            event.__endDate instanceof Date &&
+                            !Number.isNaN(event.__endDate.getTime())
+                          ) {
+                            const slotStartMinutesTotal =
+                              event.__startDate.getHours() * 60 + event.__startDate.getMinutes();
+                            const slotEndMinutesTotal =
+                              event.__endDate.getHours() * 60 + event.__endDate.getMinutes();
+                            const clippedStart = Math.max(slotStartMinutesTotal, hourStartMinutes);
+                            const clippedEnd = Math.min(slotEndMinutesTotal, hourEndMinutes);
+                            const visibleStartWithinHour = clippedStart - hourStartMinutes; // 0–60
+                            const visibleDurationMinutes = Math.max(
+                              5,
+                              clippedEnd - clippedStart,
+                            );
+                            topPct = Math.min(
+                              100,
+                              Math.max(0, (visibleStartWithinHour / 60) * 100),
+                            );
+                            heightPct = Math.min(
+                              100 - topPct,
+                              (visibleDurationMinutes / 60) * 100,
+                            );
+                          }
+
+                          let colorClass = 'bg-indigo-600';
+                          if (isCandidateView) {
+                            // Candidate dashboard: all slots same color
+                            colorClass = 'bg-blue-600';
+                          } else if ((!isCandidateView || isOwnSlot) && colorByReferrer) {
+                            const ref = String(event.referredBy || '').toLowerCase();
+                            if (ref.includes('anil')) {
+                              colorClass = 'bg-blue-600';
+                            } else if (ref.includes('viraj')) {
+                              colorClass = 'bg-emerald-600';
+                            } else if (ref.includes('nilesh')) {
+                              colorClass = 'bg-red-600';
+                            } else if (ref.includes('vishal')) {
+                              colorClass = 'bg-orange-500';
+                            }
+                          }
+                          return (
+                            <div
+                              key={`${event.title}-${idx}`}
+                              className={`absolute inset-x-1 rounded-lg border border-amber-200 ${colorClass} px-2 py-1.5 sm:px-3 sm:py-2 text-[14px] text-white shadow-sm w-auto max-w-full break-words overflow-hidden`}
+                              style={{ top: `${topPct}%`, height: `${heightPct}%` }}
+                            >
+                              <div className="text-[14px] font-semibold">
+                                {mainLabel}
+                              </div>
+                              {timeLabel && (
+                                <div className="text-[14px] opacity-80">
+                                  {timeLabel}
+                                </div>
+                              )}
                             </div>
-                            <div className="mt-0.5 text-[9px] sm:text-[10px] font-medium text-indigo-100">
-                              {dayHeader.label} ·{' '}
-                              {`${hourLabel(hour)} – ${hourLabel(hour + 1)}`}
-                            </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {/* Today red line - only in today column and current hour row */}
-                        {isToday && hour === currentHour && (
+                        {isToday && withinHoursRange && isCurrentHour && (
                           <div
                             className="pointer-events-none absolute left-0 right-0"
-                            style={{ top: `${todayIndicatorOffset}%` }}
+                            style={{ top: `${minuteOffset}%` }}
                           >
                             <div className="h-[1.5px] w-full bg-red-500" />
                           </div>
@@ -175,13 +293,15 @@ function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [] }) 
                 })}
                 {/* Time label on right side */}
                 <td
-                  className="border border-slate-300 bg-slate-50 text-left pl-3 text-[11px] font-medium text-slate-500 align-top"
+                  className="relative border border-slate-300 bg-slate-50 text-left pl-3 text-[14px] font-medium text-slate-500 align-top overflow-visible"
                   style={{ height: ROW_HEIGHT }}
                 >
                   {hourLabel(hour)}
+                  <div className="absolute left-0 right-0 top-1/2 h-px bg-slate-300/40 pointer-events-none -translate-y-px" />
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>

@@ -31,6 +31,14 @@ export function getWeekDays(weekStart, count = 6) {
   });
 }
 
+/** End of the visible week (start of day after last visible day). Use with eventDate < end for inclusive Saturday. */
+export function getWeekEndExclusive(weekStart, dayCount = 6) {
+  const days = getWeekDays(weekStart, dayCount);
+  const lastDay = days[days.length - 1];
+  const end = new Date(lastDay.getTime() + MS_IN_DAY);
+  return end;
+}
+
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 

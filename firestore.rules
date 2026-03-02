@@ -1,0 +1,33 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Candidates - used by Login and Admin Dashboard
+    match /candidates/{docId} {
+      allow read, write: if true;
+    }
+    // Users - used by Admin Dashboard (role=candidate)
+    match /users/{docId} {
+      allow read, write: if true;
+    }
+    // Admin - used by Login
+    match /admin/{docId} {
+      allow read, write: if true;
+    }
+    // Events/slots - used for slot booking
+    match /events/{docId} {
+      allow read, write: if true;
+    }
+    // HRs
+    match /hrs/{docId} {
+      allow read, write: if true;
+    }
+    // Admin leaves
+    match /adminLeaves/{docId} {
+      allow read, write: if true;
+    }
+    // Slots (if used separately)
+    match /slots/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

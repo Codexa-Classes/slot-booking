@@ -22,7 +22,7 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const loadSession = async () => {
       try {
-        const raw = localStorage.getItem('sb_user');
+        const raw = sessionStorage.getItem('sb_user');
         const parsed = raw ? JSON.parse(raw) : null;
 
         if (!parsed?.mobile) {
@@ -85,7 +85,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      localStorage.removeItem('sb_user');
+      sessionStorage.removeItem('sb_user');
     } catch {
       // ignore
     }

@@ -1,0 +1,42 @@
+/* FullCalendar responsive overrides */
+.calendar-container .fc {
+  font-size: 14px;
+}
+/* Ensure date headers and time labels are 14px */
+.calendar-container .fc .fc-col-header-cell-cushion,
+.calendar-container .fc .fc-timegrid-slot-label,
+.calendar-container .fc .fc-event {
+  font-size: 14px;
+}
+/* 1/2 hour faint lines in FullCalendar (slotDuration 30min) */
+.calendar-container .fc .fc-timegrid-slot {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.35);
+}
+.calendar-container .fc .fc-timegrid-slot:last-child {
+  border-bottom: none;
+}
+
+/* Emphasize current time red line in FullCalendar */
+.calendar-container .fc .fc-timegrid-now-indicator-line {
+  border-color: #ef4444 !important; /* red-500 */
+  border-width: 2px !important;
+  z-index: 5;
+}
+@media (max-width: 768px) {
+  .calendar-container .fc .fc-toolbar-title {
+    font-size: 1rem;
+  }
+  .calendar-container .fc-event {
+    font-size: 0.75rem;
+  }
+}
+.sunday-cell,
+.sunday-header,
+.sunday-slot {
+  background-color: #fff5f5 !important;
+}
+.leave-cell,
+.leave-header,
+.leave-slot {
+  background-color: #fff1f0 !important;
+}

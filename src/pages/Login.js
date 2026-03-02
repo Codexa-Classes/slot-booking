@@ -62,8 +62,8 @@ export default function Login() {
           localStorage.setItem('adminToken', Date.now().toString());
           localStorage.setItem('adminAuth', 'true');
 
-          // Also set sb_user so route guards in this app keep working
-          localStorage.setItem(
+          // Use sessionStorage so pasting URL in another tab/browser opens login page
+          sessionStorage.setItem(
             'sb_user',
             JSON.stringify({
               mobile: normalizedMobile,
@@ -98,7 +98,7 @@ export default function Login() {
         return;
       }
 
-      if (!candidateData.isActive) {
+      if (candidateData.isActive === false) {
         setLocalError(
           'Your account is currently inactive. Please contact the administrator.',
         );
@@ -128,9 +128,10 @@ export default function Login() {
       localStorage.setItem('uid', candidateSession.id);
 
       // Also set sb_user for this app’s guards and dashboards
-      localStorage.setItem(
+      sessionStorage.setItem(
         'sb_user',
         JSON.stringify({
+          id: candidateDoc.id,
           mobile: normalizedMobile,
           role: 'candidate',
           name: (candidateSession.name || '').trim(),

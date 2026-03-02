@@ -9,6 +9,7 @@ import {
   doc,
   deleteDoc,
   addDoc,
+  updateDoc,
   serverTimestamp,
 } from 'firebase/firestore';
 import Navbar from '../Components/Navbar';
@@ -17,11 +18,10 @@ import BookSlot from './BookSlot';
 import WeekCalendar from '../Components/WeekCalendar';
 import { db } from '../firebase/firebase';
 import { formatDateDDMMYYYY } from '../firebase/slotsService';
-import { formatDayHeader } from '../calendar';
+// import { formatDayHeader } from '../calendar';
 import { useAuth } from '../context/AuthContext';
 
-// Placeholder events for future dynamic data (no fixed dates)
-const MOCK_EVENTS = [];
+// const MOCK_EVENTS = [];
 
 // Reusable pagination bar: left = count label, right = « < pages > » + per-page selector
 function PaginationBar({
@@ -150,13 +150,13 @@ function Header({ userName, onLogout, activeNav, onChangeNav }) {
 
   return (
     <>
-      <div className="bg-pink-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3 relative">
+      <div className="bg-emerald-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3 relative">
         {/* Left Section: hamburger + title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setNavOpen((open) => !open)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-slate-700 hover:bg-pink-200 shadow-sm md:hidden"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-slate-700 hover:bg-emerald-200 shadow-sm md:hidden"
             aria-label="Toggle navigation"
           >
             <i className="fa-solid fa-bars w-4 h-4" aria-hidden="true" />
@@ -259,10 +259,63 @@ function Header({ userName, onLogout, activeNav, onChangeNav }) {
   );
 }
 
-// Candidate calendar area: uses WeekCalendar; header shows current system date only
-function CandidateCalendarArea({ onOpenAddHR, onOpenBookSlot }) {
+// Candidate calendar area: other slots show "Slot Booked" + blue; own slots show name + referrer color
+function CandidateCalendarArea({ onOpenAddHR, onOpenBookSlot, candidateIds = [] }) {
   const headerDate = new Date();
   const [calendarRefreshKey, setCalendarRefreshKey] = useState(0);
+  const [disableBookNewSlot, setDisableBookNewSlot] = useState(false);
+
+  // Track last slot feedback status so we can disable Book New Slot
+  useEffect(() => {
+    if (!Array.isArray(candidateIds) || candidateIds.length === 0) {
+      setDisableBookNewSlot(false);
+      return;
+    }
+
+    const eventsRef = collection(db, 'events');
+    const q =
+      candidateIds.length === 1
+        ? query(eventsRef, where('candidateId', '==', candidateIds[0]))
+        : query(eventsRef, where('candidateId', 'in', candidateIds));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const items = snap.docs
+          .map((docSnap) => {
+            const data = docSnap.data() || {};
+            return { id: docSnap.id, ...data };
+          })
+          .filter((item) => {
+            const cid = String(item.candidateId || '').trim();
+            return cid && candidateIds.includes(cid);
+          })
+          .sort((a, b) => {
+            const aTime = a.createdAt?.toMillis
+              ? a.createdAt.toMillis()
+              : a.createdAt
+              ? new Date(a.createdAt).getTime()
+              : 0;
+            const bTime = b.createdAt?.toMillis
+              ? b.createdAt.toMillis()
+              : b.createdAt
+              ? new Date(b.createdAt).getTime()
+              : 0;
+            return bTime - aTime;
+          });
+
+        const lastSlot = items[0] || null;
+        const needsFeedback =
+          lastSlot && !String(lastSlot.feedback || '').trim();
+        setDisableBookNewSlot(!!needsFeedback);
+      },
+      () => {
+        setDisableBookNewSlot(false);
+      },
+    );
+
+    return () => unsub();
+  }, [candidateIds]);
 
   const candidateTodayLabel = headerDate.toLocaleDateString('en-GB', {
     day: 'numeric',
@@ -315,8 +368,13 @@ function CandidateCalendarArea({ onOpenAddHR, onOpenBookSlot }) {
               </button>
               <button
                 type="button"
-                onClick={onOpenBookSlot}
-                className="flex-1 bg-green-500 hover:bg-green-600 text-white px-2 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap"
+                onClick={!disableBookNewSlot ? onOpenBookSlot : undefined}
+                disabled={disableBookNewSlot}
+                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap ${
+                  disableBookNewSlot
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
               >
                 + Book New Slot
               </button>
@@ -369,8 +427,13 @@ function CandidateCalendarArea({ onOpenAddHR, onOpenBookSlot }) {
               </button>
               <button
                 type="button"
-                onClick={onOpenBookSlot}
-                className="bg-green-500 hover:bg-green-600 text-white px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap"
+                onClick={!disableBookNewSlot ? onOpenBookSlot : undefined}
+                disabled={disableBookNewSlot}
+                className={`px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap ${
+                  disableBookNewSlot
+                    ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700 text-white'
+                }`}
               >
                 + Book New Slot
               </button>
@@ -378,61 +441,87 @@ function CandidateCalendarArea({ onOpenAddHR, onOpenBookSlot }) {
           </div>
         </div>
 
-        <WeekCalendar key={calendarRefreshKey} />
+        <WeekCalendar key={calendarRefreshKey} candidateIds={candidateIds} />
       </div>
     </div>
   );
 }
 
 // My Slots Component - shows user's booked slots
-function MySlots({ onBookNewSlot, onBackToHome }) {
-  const { currentUser } = useAuth();
+function MySlots({ onBookNewSlot, onBackToHome, hrList = [] }) {
+  // We derive identity from sessionStorage (sb_user) only,
+  // so switching candidates via login immediately changes the query.
   const [slots, setSlots] = useState([]);
   const [slotSearch, setSlotSearch] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [feedbackSlot, setFeedbackSlot] = useState(null);
+  const [feedbackText, setFeedbackText] = useState('');
+  const [savingFeedback, setSavingFeedback] = useState(false);
+
+  const sbSessionRaw =
+    typeof window !== 'undefined' ? sessionStorage.getItem('sb_user') : null;
 
   useEffect(() => {
-    let storedId = '';
+    // Resolve candidate identity from current session.
+    // We use candidateId stored as Firestore id or mobile for this candidate.
+    let candidateIds = [];
     try {
-      const raw = localStorage.getItem('sb_user');
-      const parsed = raw ? JSON.parse(raw) : null;
-      storedId = String(parsed?.mobile || '').trim();
+      const parsed = sbSessionRaw ? JSON.parse(sbSessionRaw) : null;
+      const id = String(parsed?.id || '').trim();
+      const mobile = String(parsed?.mobile || '').trim();
+      candidateIds = [id, mobile].filter(Boolean);
+      candidateIds = [...new Set(candidateIds)];
     } catch {
-      storedId = '';
+      candidateIds = [];
     }
 
-    const candidateId = storedId || currentUser?.uid;
-    if (!candidateId) return;
+    if (candidateIds.length === 0) return;
 
-    const q = query(
-      collection(db, 'events'),
-      where('candidateId', '==', candidateId),
-    );
+    const eventsRef = collection(db, 'events');
+    const q =
+      candidateIds.length === 1
+        ? query(eventsRef, where('candidateId', '==', candidateIds[0]))
+        : query(eventsRef, where('candidateId', 'in', candidateIds));
+
     const unsub = onSnapshot(q, (snap) => {
-      const items = snap.docs.map((doc) => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          ...data,
-        };
-      });
+      const items = snap.docs
+        .map((doc) => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            ...data,
+          };
+        })
+        // Safety: only keep slots for the current candidate ids
+        .filter((item) => {
+          const cid = String(item.candidateId || '').trim();
+          return cid && candidateIds.includes(cid);
+        });
 
       // Sort so newest slots (by createdAt) appear at the top
       items.sort((a, b) => {
-        const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
-        const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        const aTime = a.createdAt?.toMillis
+          ? a.createdAt.toMillis()
+          : a.createdAt
+            ? new Date(a.createdAt).getTime()
+            : 0;
+        const bTime = b.createdAt?.toMillis
+          ? b.createdAt.toMillis()
+          : b.createdAt
+            ? new Date(b.createdAt).getTime()
+            : 0;
         return bTime - aTime;
       });
 
       setSlots(items);
     });
     return () => unsub();
-  }, [currentUser, refreshKey]);
+  }, [sbSessionRaw, refreshKey]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const totalSlots = slots.length;
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
 
   const ROUND_LABELS = [
     'Technical Round 1',
@@ -443,10 +532,23 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
     'Task Assesment',
   ];
 
+  const normaliseRoundLabel = (raw) => {
+    const r = String(raw || '').trim();
+    if (!r) return '';
+    const lower = r.toLowerCase();
+    if (lower === 'round 1') return 'Technical Round 1';
+    if (lower === 'round 2') return 'Technical Round 2';
+    if (lower === 'round 3') return 'Technical Round 3';
+    if (lower === 'manager round' || lower === 'managerial round') return 'Manageral Round';
+    if (lower === 'technical discussion round') return 'HR Round';
+    if (lower === 'last technical round') return 'Task Assesment';
+    return r;
+  };
+
   const roundCounts = useMemo(() => {
     const counts = {};
     slots.forEach((slot) => {
-      const round = String(slot.round || '').trim();
+      const round = normaliseRoundLabel(slot.round || slot.interviewRound);
       if (!round) return;
       counts[round] = (counts[round] || 0) + 1;
     });
@@ -465,10 +567,21 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
   }, [slots, slotSearch]);
 
   const formatTimeLabel = (slot) => {
-    const timeStr = slot.time || (slot.startHour != null && slot.startMinute != null
-      ? `${String(slot.startHour).padStart(2, '0')}:${String(slot.startMinute).padStart(2, '0')}`
-      : '');
-    const durationStr = slot.duration || '';
+    let timeStr = slot.time;
+    let durationStr = slot.duration;
+    if (!timeStr && (slot.startHour != null && slot.startMinute != null)) {
+      timeStr = `${String(slot.startHour).padStart(2, '0')}:${String(slot.startMinute).padStart(2, '0')}`;
+    }
+    if (!timeStr && slot.start) {
+      const startVal = slot.start?.toDate ? slot.start.toDate() : new Date(slot.start);
+      if (!Number.isNaN(startVal.getTime())) {
+        timeStr = `${String(startVal.getHours()).padStart(2, '0')}:${String(startVal.getMinutes()).padStart(2, '0')}`;
+        if (!durationStr && slot.end) {
+          const endVal = slot.end?.toDate ? slot.end.toDate() : new Date(slot.end);
+          durationStr = String(Math.round((endVal.getTime() - startVal.getTime()) / 60000));
+        }
+      }
+    }
     if (!timeStr) return '';
     const [hh, mm] = timeStr.split(':').map((v) => parseInt(v, 10));
     if (Number.isNaN(hh) || Number.isNaN(mm)) return timeStr;
@@ -490,6 +603,46 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
     return `${startLabel} - ${endLabel} (${durLabel})`;
   };
 
+  const getSlotEndTime = (slot) => {
+    // Determine end time from slot.end or from date + time + duration
+    let endTime = null;
+    if (slot.end) {
+      const endVal = slot.end?.toDate ? slot.end.toDate() : new Date(slot.end);
+      if (!Number.isNaN(endVal.getTime())) {
+        endTime = endVal;
+      }
+    }
+    if (!endTime) {
+      const dateBase =
+        slot.date?.toDate ? slot.date.toDate() : slot.date ? new Date(slot.date) : new Date();
+      let hh = null;
+      let mm = null;
+      if (slot.startHour != null && slot.startMinute != null) {
+        hh = parseInt(slot.startHour, 10);
+        mm = parseInt(slot.startMinute, 10);
+      } else if (slot.time) {
+        const [th, tm] = String(slot.time).split(':').map((v) => parseInt(v, 10));
+        if (!Number.isNaN(th) && !Number.isNaN(tm)) {
+          hh = th;
+          mm = tm;
+        }
+      }
+      const dur = parseInt(slot.duration, 10) || 30;
+      if (hh != null && mm != null) {
+        const start = new Date(dateBase);
+        start.setHours(hh, mm, 0, 0);
+        endTime = new Date(start.getTime() + dur * 60000);
+      }
+    }
+    return endTime;
+  };
+
+  const isSlotPast = (slot) => {
+    const endTime = getSlotEndTime(slot);
+    if (!endTime) return false;
+    return endTime.getTime() <= Date.now();
+  };
+
   const handleDeleteSlot = async (id) => {
     try {
       await deleteDoc(doc(db, 'events', id));
@@ -502,6 +655,11 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
   const totalItems = filteredSlots.length;
   const startIdx = (currentPage - 1) * itemsPerPage;
   const paginatedSlots = filteredSlots.slice(startIdx, startIdx + itemsPerPage);
+
+  // Require feedback for the most recently booked slot (slots are already sorted newest-first)
+  const lastSlot = slots[0] || null;
+  const mustGiveFeedbackForLastSlot =
+    lastSlot && !String(lastSlot.feedback || '').trim();
 
   return (
     <div className="bg-white rounded-lg sm:rounded-2xl shadow-md border border-slate-200 px-4 py-4 sm:px-6 sm:py-6">
@@ -533,12 +691,17 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
           </button>
         </div>
 
-        {/* Right: Book New Slot button */}
+        {/* Right: Book New Slot button (disabled until all past slots have feedback) */}
         <div className="flex items-center">
           <button
             type="button"
-            onClick={onBookNewSlot}
-            className="inline-flex items-center gap-1.5 rounded-full bg-green-500 px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold text-white shadow hover:bg-green-600 whitespace-nowrap"
+            onClick={!mustGiveFeedbackForLastSlot ? onBookNewSlot : undefined}
+            disabled={mustGiveFeedbackForLastSlot}
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-semibold shadow whitespace-nowrap ${
+              mustGiveFeedbackForLastSlot
+                ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
           >
             <span className="text-lg">+</span>
             <span>Book New Slot</span>
@@ -642,9 +805,23 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
                     </td>
                     <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
                       {(() => {
-                        const hrName = slot.hrName || '';
-                        const hrMobile = slot.hrMobile || '';
-                        const hrEmail = slot.hrEmail || '';
+                        const rawHrName = slot.hrName || '';
+                        const rawHrMobile = slot.hrMobile || '';
+                        const rawHrEmail = slot.hrEmail || '';
+
+                        // Fallback to HR master list for older slots that only have hrId stored
+                        const hrFromList =
+                          hrList.find((h) => String(h.id || '').trim() === String(slot.hrId || '').trim()) ||
+                          hrList.find(
+                            (h) =>
+                              rawHrName &&
+                              String(h.name || '').trim().toLowerCase() === rawHrName.trim().toLowerCase(),
+                          ) ||
+                          null;
+
+                        const hrName = rawHrName || hrFromList?.name || '';
+                        const hrMobile = rawHrMobile || hrFromList?.mobile || '';
+                        const hrEmail = rawHrEmail || hrFromList?.email || '';
 
                         if (!hrName && !hrMobile && !hrEmail) {
                           return <span className="text-slate-400">-</span>;
@@ -677,7 +854,7 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
                       })()}
                     </td>
                     <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
-                      {slot.round || '-'}
+                      {normaliseRoundLabel(slot.round || slot.interviewRound) || '-'}
                     </td>
                     <td className="px-3 py-2 text-slate-700 border-r border-slate-200">
                       <div className="flex flex-col">
@@ -695,7 +872,35 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
                       </div>
                     </td>
                     <td className="px-3 py-2 text-slate-700 text-center border-r border-slate-200">
-                      -
+                      {(() => {
+                        const past = isSlotPast(slot);
+                        const label = slot.feedback ? 'View Feedback' : 'Add Feedback';
+                        if (!past) {
+                          return (
+                            <button
+                              type="button"
+                              disabled
+                              className="inline-flex items-center gap-1 rounded-full border border-slate-200 px-3 py-1 text-[11px] font-semibold text-slate-400 bg-slate-50 cursor-not-allowed"
+                            >
+                              <i className="fa-solid fa-lock text-[10px]" aria-hidden="true" />
+                              {label}
+                            </button>
+                          );
+                        }
+                        return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFeedbackSlot(slot);
+                          setFeedbackText(slot.feedback || '');
+                        }}
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-300 px-3 py-1 text-[11px] font-semibold text-slate-700 bg-white hover:bg-slate-50"
+                      >
+                        <i className="fa-solid fa-comment-dots text-xs" aria-hidden="true" />
+                        {label}
+                      </button>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-2 text-slate-700 text-center">
                       <button
@@ -712,6 +917,95 @@ function MySlots({ onBookNewSlot, onBackToHome }) {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {/* Feedback modal */}
+      {feedbackSlot && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30">
+          <div className="relative w-full max-w-md rounded-xl bg-white shadow-lg px-5 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">
+                Feedback for {feedbackSlot.company || feedbackSlot.companyName || 'Slot'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingFeedback) {
+                    setFeedbackSlot(null);
+                    setFeedbackText('');
+                  }
+                }}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-slate-600 hover:bg-slate-200 border border-slate-200"
+                aria-label="Close"
+              >
+                <i className="fa-solid fa-xmark text-sm" aria-hidden="true" />
+              </button>
+            </div>
+            <div className="mb-3 text-xs text-slate-600">
+              <div>
+                <span className="font-semibold">Date:</span>{' '}
+                {formatDateDDMMYYYY(feedbackSlot.date)}
+              </div>
+              {formatTimeLabel(feedbackSlot) && (
+                <div>
+                  <span className="font-semibold">Time:</span>{' '}
+                  {formatTimeLabel(feedbackSlot)}
+                </div>
+              )}
+            </div>
+            <textarea
+              rows={4}
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-200"
+              placeholder="Enter feedback for this slot"
+              value={feedbackText}
+              onChange={(e) => setFeedbackText(e.target.value)}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!savingFeedback) {
+                    setFeedbackSlot(null);
+                    setFeedbackText('');
+                  }
+                }}
+                className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingFeedback}
+                onClick={async () => {
+                  if (!feedbackSlot?.id) {
+                    setFeedbackSlot(null);
+                    return;
+                  }
+                  try {
+                    setSavingFeedback(true);
+                    const ref = doc(db, 'events', feedbackSlot.id);
+                    await updateDoc(ref, { feedback: feedbackText.trim() });
+                    // Update local state
+                    setSlots((prev) =>
+                      prev.map((s) =>
+                        s.id === feedbackSlot.id ? { ...s, feedback: feedbackText.trim() } : s,
+                      ),
+                    );
+                    setFeedbackSlot(null);
+                    setFeedbackText('');
+                  } catch (err) {
+                    // eslint-disable-next-line no-console
+                    console.error('Failed to save feedback:', err);
+                  } finally {
+                    setSavingFeedback(false);
+                  }
+                }}
+                className="inline-flex items-center gap-1 rounded-md bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 text-xs font-semibold disabled:opacity-70"
+              >
+                {savingFeedback ? 'Saving...' : 'Save Feedback'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {filteredSlots.length > 0 && (
@@ -738,17 +1032,32 @@ export default function CandidateDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentUser } = useAuth();
-  const params = new URLSearchParams(location.search);
-  const initialNav = params.get('view') === 'slots' ? 'slots' : 'home';
+  // Use state (not URL) for "open slots" so refresh always shows home
   const [showAddHR, setShowAddHR] = useState(false);
   const [showBookSlot, setShowBookSlot] = useState(false);
-  const [activeNav, setActiveNav] = useState(initialNav); // 'home', 'slots', 'hrs'
+  const [activeNav, setActiveNav] = useState(() =>
+    location.state?.openSlots ? 'slots' : 'home',
+  );
   const [userName, setUserName] = useState('');
+
+  // Candidate ids for calendar: derive directly from current sb_user session
+  const candidateIds = (() => {
+    try {
+      const raw = sessionStorage.getItem('sb_user');
+      const parsed = raw ? JSON.parse(raw) : null;
+      const id = String(parsed?.id || '').trim();
+      const mobile = String(parsed?.mobile || '').trim();
+      const ids = [id, mobile].filter(Boolean);
+      return [...new Set(ids)];
+    } catch {
+      return [];
+    }
+  })();
 
   // Auth guard: redirect if not candidate. Send admins to their dashboard (so back button works correctly)
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('sb_user');
+      const raw = sessionStorage.getItem('sb_user');
       const parsed = raw ? JSON.parse(raw) : null;
       const role = (parsed?.role || '').trim().toLowerCase();
       if (!parsed?.mobile) {
@@ -801,7 +1110,7 @@ export default function CandidateDashboard() {
   useEffect(() => {
     const loadUserName = async () => {
       try {
-        const raw = localStorage.getItem('sb_user');
+        const raw = sessionStorage.getItem('sb_user');
         const parsed = raw ? JSON.parse(raw) : null;
         const cachedName = (parsed?.name || '').trim();
         if (cachedName) {
@@ -821,7 +1130,7 @@ export default function CandidateDashboard() {
         if (!name) return;
 
         setUserName(name);
-        localStorage.setItem(
+        sessionStorage.setItem(
           'sb_user',
           JSON.stringify({ ...parsed, name }),
         );
@@ -840,7 +1149,7 @@ export default function CandidateDashboard() {
       let addedByName = userName?.trim();
       if (!addedByName) {
         try {
-          const raw = localStorage.getItem('sb_user');
+          const raw = sessionStorage.getItem('sb_user');
           const parsed = raw ? JSON.parse(raw) : null;
           addedByName = (parsed?.name || '').trim();
         } catch {
@@ -899,7 +1208,7 @@ export default function CandidateDashboard() {
         activeNav={activeNav}
         onChangeNav={handleNavClick}
         onLogout={() => {
-          localStorage.removeItem('sb_user');
+          sessionStorage.removeItem('sb_user');
           navigate('/login', { replace: true });
         }}
       />
@@ -926,9 +1235,11 @@ export default function CandidateDashboard() {
           <MySlots
             onBookNewSlot={() => setShowBookSlot(true)}
             onBackToHome={() => setActiveNav('home')}
+            hrList={hrList}
           />
         ) : (
           <CandidateCalendarArea
+            candidateIds={candidateIds}
             onOpenAddHR={() => {
               setActiveNav('hrs');
               setShowAddHR(true);
