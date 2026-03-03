@@ -150,13 +150,13 @@ function Header({ userName, onLogout, activeNav, onChangeNav }) {
 
   return (
     <>
-      <div className="bg-emerald-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3 relative">
+      <div className="bg-blue-100 px-2 sm:px-4 md:px-8 py-2 sm:py-3 md:py-4 flex items-center justify-between gap-2 sm:gap-3 relative">
         {/* Left Section: hamburger + title */}
         <div className="flex items-center gap-2 sm:gap-3 min-w-0">
           <button
             type="button"
             onClick={() => setNavOpen((open) => !open)}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-slate-700 hover:bg-emerald-200 shadow-sm md:hidden"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/70 text-slate-700 hover:bg-blue-200 shadow-sm md:hidden"
             aria-label="Toggle navigation"
           >
             <i className="fa-solid fa-bars w-4 h-4" aria-hidden="true" />
