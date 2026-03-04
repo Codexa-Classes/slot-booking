@@ -1,5 +1,5 @@
-[# Netlify configuration]
-[# Temporary CI change to prevent ESLint warnings from failing builds]
+# Netlify configuration
+# Temporary CI change to prevent ESLint warnings from failing builds
 
 [build]
   command = "npm run build"
