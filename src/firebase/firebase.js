@@ -21,14 +21,13 @@ import {
 } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyAyuETLGIpRif60ncih2LydFRbGhCdZU0A",
-  // authDomain is typically `${projectId}.firebaseapp.com`. The previous value had a space and caused Auth failures.
-  authDomain: "calendar-demo-df7e6.firebaseapp.com",
-  projectId: "calendar-demo-df7e6",
-  storageBucket: "calendar-demo-df7e6.firebasestorage.app",
-  messagingSenderId: "617344029042",
-  appId: "1:617344029042:web:631fb53c6cbbb81cab4deb",
-  measurementId: "G-H1HH93RXWX",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);
