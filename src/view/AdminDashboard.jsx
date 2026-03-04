@@ -29,6 +29,19 @@ import {
 } from '../firebase/slotsService';
 import WeekCalendar from '../Components/WeekCalendar';
 
+const normaliseRoundLabelAdmin = (raw) => {
+  const r = String(raw || '').trim();
+  if (!r) return '';
+  const lower = r.toLowerCase();
+  if (lower === 'round 1') return 'Technical Round 1';
+  if (lower === 'round 2') return 'Technical Round 2';
+  if (lower === 'round 3') return 'Technical Round 3';
+  if (lower === 'manager round' || lower === 'managerial round') return 'Manageral Round';
+  if (lower === 'technical discussion round') return 'HR Round';
+  if (lower === 'last technical round') return 'Task Assesment';
+  return r;
+};
+
 // Reusable pagination bar: left = count label, right = « < pages > » + per-page selector
 function PaginationBar({
   totalItems,
@@ -3452,19 +3465,6 @@ function AdminCandidateSlotsView({ data, onBack }) {
   const joiningDate = candidate?.joiningDate || '-';
   const selectedCompany = candidate?.selectedCompany || '-';
   const selectedPackage = candidate?.package || '-';
-
-const normaliseRoundLabelAdmin = (raw) => {
-  const r = String(raw || '').trim();
-  if (!r) return '';
-  const lower = r.toLowerCase();
-  if (lower === 'round 1') return 'Technical Round 1';
-  if (lower === 'round 2') return 'Technical Round 2';
-  if (lower === 'round 3') return 'Technical Round 3';
-  if (lower === 'manager round' || lower === 'managerial round') return 'Manageral Round';
-  if (lower === 'technical discussion round') return 'HR Round';
-  if (lower === 'last technical round') return 'Task Assesment';
-  return r;
-};
 
 const ROUND_LABELS = [
   'Technical Round 1',
