@@ -13,7 +13,7 @@ import { subscribeToApprovedSlots, getLeaves } from '../firebase/slotsService';
 
 // candidateIds: when provided (candidate dashboard), other slots show "Slot Booked" + blue; own slots show name + referrer color.
 function WeekCalendar({ candidateIds = [] }) {
-  const today = new Date();
+  const today = useMemo(() => new Date(), []);
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()));
   const [events, setEvents] = useState([]);
   const [leaveDates, setLeaveDates] = useState([]);

@@ -1220,6 +1220,14 @@ export default function CandidateDashboard() {
         onNavChange={handleNavClick}
         activeNav={activeNav}
       />
+
+      {hrsLoading && (
+        <div className="px-4 pt-2 text-sm text-slate-500">Loading HR list…</div>
+      )}
+      {hrsError && (
+        <div className="px-4 pt-2 text-sm text-red-600">{hrsError}</div>
+      )}
+
       <main className="p-2 sm:p-4 md:p-8">
         {showBookSlot ? (
           <BookSlot

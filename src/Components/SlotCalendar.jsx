@@ -138,7 +138,6 @@ function SlotCalendar({ today: todayProp, weekStart, events, leaveDates = [], co
                 {days.map((day, dayIdx) => {
                   const isToday = dayIdx === todayIndex;
                   const isLeaveDay = leaveSet.has(dayToYYYYMMDD(day));
-                  const dayHeader = formatDayHeader(day);
                   const dayEvents = eventsByDay[dayIdx] || [];
                   // Include any event whose time range overlaps this hour block
                   const hourStartMinutes = hour * 60;

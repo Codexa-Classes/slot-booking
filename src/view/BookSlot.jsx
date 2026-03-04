@@ -1,13 +1,13 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../firebase/firebase';
 import { useAuth } from '../context/AuthContext';
 import { getSlotsForDate, isSlotAvailable, getLeaves, formatDateDDMMYYYY } from '../firebase/slotsService';
 
 export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList = [] }) {
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { currentUser: _currentUser } = useAuth();
   const [form, setForm] = useState({
     date: '',
     dateDisplay: '',
@@ -40,10 +40,7 @@ export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList =
     setForm((f) => {
       const updated = { ...f, [name]: value };
       // Auto-update AM/PM based on hour selection
-      if (name === 'hour' && value) {
-        const hourNum = parseInt(value, 10);
-        // AM/PM will be calculated dynamically in render
-      }
+      // AM/PM is derived dynamically via getAmPm; no extra calculation here
       return updated;
     });
   };

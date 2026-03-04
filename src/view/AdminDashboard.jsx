@@ -1752,7 +1752,6 @@ function AdminSlotsTable({
   error = null,
   stats = null,
 }) {
-  const totalSlots = slots.length;
   // Default to this week (dropdown default), matching your request
   const [timeRange, setTimeRange] = useState('thisWeek');
   const [companyFilter, setCompanyFilter] = useState('');
@@ -3466,15 +3465,6 @@ function AdminCandidateSlotsView({ data, onBack }) {
   const selectedCompany = candidate?.selectedCompany || '-';
   const selectedPackage = candidate?.package || '-';
 
-const ROUND_LABELS = [
-  'Technical Round 1',
-  'Technical Round 2',
-  'Technical Round 3',
-  'Manageral Round',
-  'HR Round',
-  'Task Assesment',
-];
-
   const roundCounts = useMemo(() => {
     const counts = {};
     slots.forEach((slot) => {
@@ -4224,9 +4214,6 @@ export default function AdminDashboard() {
         // Merge Firestore HRs with mock HRs, avoiding duplicates by email
         setHrs((prev) => {
           const mockHRs = prev.filter((h) => !String(h.id).startsWith('firestore_'));
-          const existingEmails = new Set(
-            [...mockHRs, ...enrichedFirestoreHRs].map((h) => h.email?.toLowerCase())
-          );
           
           // Filter out duplicates from Firestore HRs
           const uniqueFirestoreHRs = enrichedFirestoreHRs.filter(

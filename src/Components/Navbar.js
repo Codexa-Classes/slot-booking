@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 // Navigation Bar Component
 export default function Navbar({ onOpenAddHR, onNavChange, activeNav: activeNavProp }) {
   const [active, setActive] = useState(activeNavProp || 'home');
-  const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
     { id: 'home', label: 'Home', icon: 'fa-solid fa-house' },
@@ -20,7 +19,6 @@ export default function Navbar({ onOpenAddHR, onNavChange, activeNav: activeNavP
 
   const handleNavClick = (id) => {
     setActive(id);
-    setMobileOpen(false);
     if (typeof onNavChange === 'function') {
       onNavChange(id);
     }
