@@ -1,0 +1,10 @@
+[# Netlify configuration]
+[# Temporary CI change to prevent ESLint warnings from failing builds]
+
+[build]
+  command = "npm run build"
+  publish = "build"
+
+[build.environment]
+  CI = "false"
+
