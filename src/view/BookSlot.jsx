@@ -7,7 +7,7 @@ import { getSlotsForDate, isSlotAvailable, getLeaves, formatDateDDMMYYYY } from 
 
 export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList = [] }) {
   const navigate = useNavigate();
-  const { currentUser: _currentUser } = useAuth();
+  useAuth();
   const [form, setForm] = useState({
     date: '',
     dateDisplay: '',
@@ -247,7 +247,7 @@ export default function BookSlot({ onClose, onOpenAddHR, onBookSuccess, hrList =
       // Compute meeting end time label
       let endLabel = '';
       try {
-        const [hh, mm] = String(form.hour || '')
+        const [hh] = String(form.hour || '')
           .split(':')
           .map((v) => parseInt(v, 10));
         const minuteVal = parseInt(form.minute, 10);
